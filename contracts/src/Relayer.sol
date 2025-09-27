@@ -100,8 +100,7 @@ contract Relayer is Ownable, ReentrancyGuard {
         bytes32 transactionId,
         address user,
         uint256 ethAmount,
-        uint256 minimumUSDCOutput,
-        uint64 deadline
+        uint256 minimumUSDCOutput
     )
         external
         onlyAuthorizedRelayer
@@ -115,32 +114,7 @@ contract Relayer is Ownable, ReentrancyGuard {
             transactionId,
             user,
             ethAmount,
-            minimumUSDCOutput,
-            deadline
-        );
-    }
-
-    function mintTicketAndSwapUSDCToETH(
-        bytes32 transactionId,
-        address user,
-        uint256 usdcAmount,
-        uint256 minimumETHOutput,
-        uint64 deadline
-    )
-        external
-        onlyAuthorizedRelayer
-        whenNotPaused
-        nonReentrant
-        returns (uint256 ethOutput)
-    {
-        ticketContract.mint(transactionId, address(this));
-        emit TicketMinted(transactionId, address(this));
-        ethOutput = executeUSDCToETHSwap(
-            transactionId,
-            user,
-            usdcAmount,
-            minimumETHOutput,
-            deadline
+            minimumUSDCOutput
         );
     }
 
@@ -148,8 +122,7 @@ contract Relayer is Ownable, ReentrancyGuard {
         bytes32 transactionId,
         address user,
         uint256 ethAmount,
-        uint256 minimumUSDCOutput,
-        uint64 deadline
+        uint256 minimumUSDCOutput
     )
         external
         onlyAuthorizedRelayer
@@ -161,8 +134,7 @@ contract Relayer is Ownable, ReentrancyGuard {
             transactionId,
             user,
             ethAmount,
-            minimumUSDCOutput,
-            deadline
+            minimumUSDCOutput
         );
     }
 
@@ -170,8 +142,7 @@ contract Relayer is Ownable, ReentrancyGuard {
         bytes32 transactionId,
         address user,
         uint256 usdcAmount,
-        uint256 minimumETHOutput,
-        uint64 deadline
+        uint256 minimumETHOutput
     )
         external
         onlyAuthorizedRelayer
@@ -183,8 +154,7 @@ contract Relayer is Ownable, ReentrancyGuard {
             transactionId,
             user,
             usdcAmount,
-            minimumETHOutput,
-            deadline
+            minimumETHOutput
         );
     }
 
@@ -229,10 +199,8 @@ contract Relayer is Ownable, ReentrancyGuard {
         bytes32 transactionId,
         address user,
         uint256 ethAmount,
-        uint256 minimumUSDCOutput,
-        uint64 deadline
+        uint256 minimumUSDCOutput
     ) internal returns (uint256 usdcOutput) {
-        validateUserAndDeadline(user, deadline);
         consumeTicket(transactionId, user);
 
         if (address(this).balance < ethAmount) revert InsufficientETHBalance();
@@ -244,7 +212,7 @@ contract Relayer is Ownable, ReentrancyGuard {
             poolKey,
             "",
             user,
-            uint256(deadline)
+            block.timestamp + 300
         );
 
         emit ETHToUSDCSwapExecuted(transactionId, user, ethAmount, usdcOutput);
@@ -254,10 +222,8 @@ contract Relayer is Ownable, ReentrancyGuard {
         bytes32 transactionId,
         address user,
         uint256 usdcAmount,
-        uint256 minimumETHOutput,
-        uint64 deadline
+        uint256 minimumETHOutput
     ) internal returns (uint256 ethOutput) {
-        validateUserAndDeadline(user, deadline);
         consumeTicket(transactionId, user);
 
         if (usdc.balanceOf(address(this)) < usdcAmount)
@@ -273,7 +239,7 @@ contract Relayer is Ownable, ReentrancyGuard {
             poolKey,
             "",
             user,
-            uint256(deadline)
+            block.timestamp + 300
         );
 
         emit USDCToETHSwapExecuted(transactionId, user, usdcAmount, ethOutput);
@@ -285,14 +251,6 @@ contract Relayer is Ownable, ReentrancyGuard {
         }
         ticketContract.burn(transactionId);
         emit TicketConsumed(transactionId, user);
-    }
-
-    function validateUserAndDeadline(
-        address user,
-        uint64 deadline
-    ) internal view {
-        if (user == address(0)) revert InvalidUser();
-        if (block.timestamp > uint256(deadline)) revert TransactionExpired();
     }
 
     modifier onlyAuthorizedRelayer() {

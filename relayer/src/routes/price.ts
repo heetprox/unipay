@@ -1,6 +1,6 @@
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
-import { priceService } from "../services/priceService";
+import { type PriceFeed, priceService } from "../services/priceService";
 
 const router: Router = Router();
 
@@ -106,7 +106,7 @@ router.post("/quote/lock", async (req: Request, res: Response) => {
     const validatedData = quoteRequestSchema.parse(req.body);
     const { userId, inrAmount, type } = validatedData;
 
-    const lockedQuote = priceService.lockQuote(userId, inrAmount, type);
+    const lockedQuote = await priceService.lockQuote(userId, inrAmount, type);
     if (!lockedQuote) {
       const message =
         type === "ETH/INR"
@@ -119,7 +119,7 @@ router.post("/quote/lock", async (req: Request, res: Response) => {
       });
     }
 
-    const response: any = {
+    const response = {
       id: lockedQuote.id,
       userId: lockedQuote.userId,
       type: lockedQuote.type,
@@ -133,7 +133,7 @@ router.post("/quote/lock", async (req: Request, res: Response) => {
 
     // Add ETH price only for ETH/INR quotes
     if (lockedQuote.type === "ETH/INR" && lockedQuote.ethPrice) {
-      response.ethPriceUsd = lockedQuote.ethPrice;
+      (response as any).ethPriceUsd = lockedQuote.ethPrice;
     }
 
     res.json({
@@ -173,14 +173,14 @@ router.get("/quote/:quoteId", async (req: Request, res: Response) => {
       });
     }
 
-    const lockedQuote = priceService.getLockedQuote(quoteId, userId);
+    const lockedQuote = await priceService.getLockedQuote(quoteId, userId);
     if (!lockedQuote) {
       return res.status(404).json({
         error: "Quote not found, expired, or not accessible by this user",
       });
     }
 
-    const response: any = {
+    const response = {
       id: lockedQuote.id,
       userId: lockedQuote.userId,
       type: lockedQuote.type,
@@ -194,7 +194,7 @@ router.get("/quote/:quoteId", async (req: Request, res: Response) => {
 
     // Add ETH price only for ETH/INR quotes
     if (lockedQuote.type === "ETH/INR" && lockedQuote.ethPrice) {
-      response.ethPriceUsd = lockedQuote.ethPrice;
+      (response as any).ethPriceUsd = lockedQuote.ethPrice;
     }
 
     res.json({
@@ -233,7 +233,7 @@ router.get("/stream", (req: Request, res: Response) => {
   }
 
   // Listen for price updates
-  const onPriceUpdate = (symbol: string, priceFeed: any) => {
+  const onPriceUpdate = (symbol: string, priceFeed: PriceFeed) => {
     res.write(
       `data: ${JSON.stringify({
         type: "update",
@@ -253,9 +253,7 @@ router.get("/stream", (req: Request, res: Response) => {
 
   // Keep connection alive
   const keepAlive = setInterval(() => {
-    res.write(
-      `data: ${JSON.stringify({ type: "ping", timestamp: Date.now() })}\n\n`
-    );
+    res.write(`data: ${JSON.stringify({ type: "ping", timestamp: Date.now() })}\n\n`);
   }, 30000);
 
   req.on("close", () => {

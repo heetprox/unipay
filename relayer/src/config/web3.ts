@@ -25,8 +25,7 @@ const account = privateKeyToAccount(process.env.PRIVATE_KEY! as `0x${string}`);
 const chainConfigs: ChainConfigs = {
   [mainnet.id]: {
     relayerContract: process.env.ETHEREUM_RELAYER_CONTRACT! as `0x${string}`,
-    ticketNftContract: process.env
-      .ETHEREUM_TICKET_NFT_CONTRACT! as `0x${string}`,
+    ticketNftContract: process.env.ETHEREUM_TICKET_NFT_CONTRACT! as `0x${string}`,
   },
   [base.id]: {
     relayerContract: process.env.BASE_RELAYER_CONTRACT! as `0x${string}`,
@@ -34,14 +33,11 @@ const chainConfigs: ChainConfigs = {
   },
   [unichain.id]: {
     relayerContract: process.env.UNICHAIN_RELAYER_CONTRACT! as `0x${string}`,
-    ticketNftContract: process.env
-      .UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
+    ticketNftContract: process.env.UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
   },
   [unichainSepolia.id]: {
-    relayerContract: process.env
-      .SEPOLIA_UNICHAIN_RELAYER_CONTRACT! as `0x${string}`,
-    ticketNftContract: process.env
-      .SEPOLIA_UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
+    relayerContract: process.env.SEPOLIA_UNICHAIN_RELAYER_CONTRACT! as `0x${string}`,
+    ticketNftContract: process.env.SEPOLIA_UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
   },
 };
 
@@ -215,9 +211,7 @@ export const getTicketContract = (chainId: SupportedChainId) => {
   });
 };
 
-export const isChainSupported = (
-  chainId: number
-): chainId is SupportedChainId => {
+export const isChainSupported = (chainId: number): chainId is SupportedChainId => {
   return supportedChains.some((chain) => chain.id === chainId);
 };
 

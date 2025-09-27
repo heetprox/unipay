@@ -13,6 +13,8 @@ model Payment {
   status        PaymentStatus
   amount        String?
   chainId       Int?
+  userId        String?
+  lockedQuoteId String?
   upiRef        String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -56,4 +58,26 @@ enum JobStatus {
   PENDING
   MINED
   FAILED
+}
+
+model Quote {
+  id           String    @id @default(cuid())
+  quoteId      String    @unique
+  userId       String
+  type         QuoteType
+  inrAmount    Decimal   @db.Decimal(18, 2)
+  outputAmount Decimal   @db.Decimal(18, 8)
+  ethPrice     Decimal?  @db.Decimal(18, 2)
+  inrPrice     Decimal   @db.Decimal(18, 4)
+  lockedAt     DateTime  @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@map("quotes")
+}
+
+enum QuoteType {
+  ETH_INR @map("ETH/INR")
+  USD_INR @map("USD/INR")
 }

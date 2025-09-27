@@ -1,4 +1,5 @@
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
+import prisma from "../config/database";
 
 interface PriceData {
   price: string;
@@ -54,12 +55,25 @@ class PriceService extends EventEmitter {
   };
 
   private currentPrices: Map<string, PriceFeed> = new Map();
-  private lockedQuotes: Map<string, Quote> = new Map();
   private eventSource: EventSource | null = null;
 
   constructor() {
     super();
-    this.startPriceStream();
+    console.log("PriceService constructor called");
+    this.initializePrices();
+  }
+
+  private async initializePrices() {
+    try {
+      console.log("Initializing prices...");
+      await this.fetchLatestPrices();
+      console.log("Initial prices fetched, starting price stream...");
+      this.startPriceStream();
+    } catch (error) {
+      console.error("Error initializing prices:", error);
+      // Still start the stream even if initial fetch fails
+      this.startPriceStream();
+    }
   }
 
   private startPriceStream() {
@@ -121,11 +135,11 @@ class PriceService extends EventEmitter {
       const symbol = this.getSymbolForId(data.price_feed.id);
       if (symbol) {
         const normalizedPrice =
-          parseFloat(data.price_feed.price.price) *
-          Math.pow(10, data.price_feed.price.expo);
+          Number.parseFloat(data.price_feed.price.price) *
+          10 ** data.price_feed.price.expo;
         const confidence =
-          parseFloat(data.price_feed.price.conf) *
-          Math.pow(10, data.price_feed.price.expo);
+          Number.parseFloat(data.price_feed.price.conf) *
+          10 ** data.price_feed.price.expo;
 
         const priceFeed: PriceFeed = {
           symbol,
@@ -141,12 +155,22 @@ class PriceService extends EventEmitter {
   }
 
   private getSymbolForId(id: string): string | null {
+    console.log("getSymbolForId called with ID:", id);
+    
     // Normalize the ID by ensuring it has 0x prefix
     const normalizedId = id.startsWith("0x") ? id : `0x${id}`;
+    console.log("Normalized ID:", normalizedId);
+    
     const entry = Object.entries(this.PRICE_FEED_IDS).find(
-      ([_, feedId]) => feedId === normalizedId
+      ([_, feedId]) => {
+        console.log("Comparing with feed ID:", feedId);
+        return feedId === normalizedId;
+      }
     );
-    return entry ? entry[0] : null;
+    
+    const symbol = entry ? entry[0] : null;
+    console.log("Found symbol:", symbol);
+    return symbol;
   }
 
   async fetchLatestPrices(): Promise<Map<string, PriceFeed>> {
@@ -155,6 +179,9 @@ class PriceService extends EventEmitter {
         .map((id) => `ids[]=${id}`)
         .join("&");
       const url = `${this.HERMES_BASE_URL}/v2/updates/price/latest?${priceIds}&parsed=true`;
+      
+      console.log("Fetching prices from URL:", url);
+      console.log("Price feed IDs:", this.PRICE_FEED_IDS);
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -162,28 +189,38 @@ class PriceService extends EventEmitter {
       }
 
       const data = (await response.json()) as PythPriceResponse;
+      console.log("Received price data:", JSON.stringify(data, null, 2));
+      
       const prices = new Map<string, PriceFeed>();
 
       for (const priceUpdate of data.parsed) {
+        console.log("Processing price update:", priceUpdate);
         const symbol = this.getSymbolForId(priceUpdate.id);
+        console.log("Mapped symbol:", symbol);
 
         if (symbol) {
           const normalizedPrice =
-            parseFloat(priceUpdate.price.price) *
-            Math.pow(10, priceUpdate.price.expo);
+            Number.parseFloat(priceUpdate.price.price) *
+            10 ** priceUpdate.price.expo;
           const confidence =
-            parseFloat(priceUpdate.price.conf) *
-            Math.pow(10, priceUpdate.price.expo);
+            Number.parseFloat(priceUpdate.price.conf) *
+            10 ** priceUpdate.price.expo;
 
-          prices.set(symbol, {
+          const priceFeed = {
             symbol,
             price: normalizedPrice,
             publishTime: priceUpdate.price.publishTime,
             confidence,
-          });
+          };
+          
+          console.log("Created price feed:", priceFeed);
+          prices.set(symbol, priceFeed);
+        } else {
+          console.log("No symbol found for price feed ID:", priceUpdate.id);
         }
       }
 
+      console.log("Final prices map:", Array.from(prices.entries()));
       this.currentPrices = prices;
       return prices;
     } catch (error) {
@@ -223,9 +260,12 @@ class PriceService extends EventEmitter {
   calculateUSDAmount(
     inrAmount: number
   ): { usdAmount: number; inrPrice: number } | null {
-    console.log('Current prices in calculateUSDAmount:', Array.from(this.currentPrices.keys()));
+    console.log(
+      "Current prices in calculateUSDAmount:",
+      Array.from(this.currentPrices.keys())
+    );
     const usdInr = this.currentPrices.get("USD/INR");
-    console.log('USD/INR price data:', usdInr);
+    console.log("USD/INR price data:", usdInr);
 
     if (!usdInr) {
       return null;
@@ -242,11 +282,11 @@ class PriceService extends EventEmitter {
     };
   }
 
-  lockQuote(
+  async lockQuote(
     userId: string,
     inrAmount: number,
     type: "ETH/INR" | "USD/INR" = "ETH/INR"
-  ): Quote | null {
+  ): Promise<Quote | null> {
     let quote: Quote;
 
     if (type === "ETH/INR") {
@@ -255,17 +295,40 @@ class PriceService extends EventEmitter {
         return null;
       }
 
-      quote = {
-        id: `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        type,
-        inrAmount,
-        outputAmount: calculation.ethAmount,
-        ethPrice: calculation.ethPrice,
-        inrPrice: calculation.inrPrice,
-        lockedAt: Date.now(),
-        expiresAt: Date.now() + 5000, // 5 seconds
-      };
+      const quoteId = `quote_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+      const expiresAt = Date.now() + 15000; // 5 seconds
+
+      try {
+        await prisma.quote.create({
+          data: {
+            quoteId,
+            userId,
+            type: "ETH_INR",
+            inrAmount: inrAmount.toString(),
+            outputAmount: calculation.ethAmount.toString(),
+            ethPrice: calculation.ethPrice.toString(),
+            inrPrice: calculation.inrPrice.toString(),
+            expiresAt: new Date(expiresAt),
+          },
+        });
+
+        quote = {
+          id: quoteId,
+          userId,
+          type,
+          inrAmount,
+          outputAmount: calculation.ethAmount,
+          ethPrice: calculation.ethPrice,
+          inrPrice: calculation.inrPrice,
+          lockedAt: Date.now(),
+          expiresAt,
+        };
+      } catch (error) {
+        console.error("Error saving quote to database:", error);
+        return null;
+      }
     } else {
       // USD/INR
       const calculation = this.calculateUSDAmount(inrAmount);
@@ -273,60 +336,140 @@ class PriceService extends EventEmitter {
         return null;
       }
 
-      quote = {
-        id: `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        type,
-        inrAmount,
-        outputAmount: calculation.usdAmount,
-        inrPrice: calculation.inrPrice,
-        lockedAt: Date.now(),
-        expiresAt: Date.now() + 5000, // 5 seconds
-      };
+      const quoteId = `quote_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+      const expiresAt = Date.now() + 5000; // 5 seconds
+
+      try {
+        await prisma.quote.create({
+          data: {
+            quoteId,
+            userId,
+            type: "USD_INR",
+            inrAmount: inrAmount.toString(),
+            outputAmount: calculation.usdAmount.toString(),
+            inrPrice: calculation.inrPrice.toString(),
+            expiresAt: new Date(expiresAt),
+          },
+        });
+
+        quote = {
+          id: quoteId,
+          userId,
+          type,
+          inrAmount,
+          outputAmount: calculation.usdAmount,
+          inrPrice: calculation.inrPrice,
+          lockedAt: Date.now(),
+          expiresAt,
+        };
+      } catch (error) {
+        console.error("Error saving quote to database:", error);
+        return null;
+      }
     }
 
-    this.lockedQuotes.set(quote.id, quote);
-
-    // Auto-cleanup expired quote
-    setTimeout(() => {
-      this.lockedQuotes.delete(quote.id);
+    // Auto-cleanup expired quote from database
+    setTimeout(async () => {
+      try {
+        await prisma.quote.delete({
+          where: { quoteId: quote.id },
+        });
+      } catch (error) {
+        // Quote might already be deleted, ignore error
+      }
     }, 5000);
 
     return quote;
   }
 
-  getLockedQuote(quoteId: string, userId?: string): Quote | null {
-    const quote = this.lockedQuotes.get(quoteId);
-    if (!quote) return null;
+  async getLockedQuote(
+    quoteId: string,
+    userId?: string
+  ): Promise<Quote | null> {
+    try {
+      const dbQuote = await prisma.quote.findUnique({
+        where: { quoteId },
+      });
 
-    // Check if quote belongs to the requesting user
-    if (userId && quote.userId !== userId) {
+      if (!dbQuote) return null;
+
+      // Check if quote belongs to the requesting user
+      if (userId && dbQuote.userId !== userId) {
+        return null;
+      }
+
+      // Check if quote has expired
+      if (Date.now() > dbQuote.expiresAt.getTime()) {
+        await prisma.quote.delete({
+          where: { quoteId },
+        });
+        return null;
+      }
+
+      const quote: Quote = {
+        id: dbQuote.quoteId,
+        userId: dbQuote.userId,
+        type: dbQuote.type === "ETH_INR" ? "ETH/INR" : "USD/INR",
+        inrAmount: Number.parseFloat(dbQuote.inrAmount.toString()),
+        outputAmount: Number.parseFloat(dbQuote.outputAmount.toString()),
+        ethPrice: dbQuote.ethPrice
+          ? Number.parseFloat(dbQuote.ethPrice.toString())
+          : undefined,
+        inrPrice: Number.parseFloat(dbQuote.inrPrice.toString()),
+        lockedAt: dbQuote.lockedAt.getTime(),
+        expiresAt: dbQuote.expiresAt.getTime(),
+      };
+
+      return quote;
+    } catch (error) {
+      console.error("Error fetching quote from database:", error);
       return null;
     }
-
-    // Check if quote has expired
-    if (Date.now() > quote.expiresAt) {
-      this.lockedQuotes.delete(quoteId);
-      return null;
-    }
-
-    return quote;
   }
 
-  getAllActiveQuotes(): Quote[] {
-    const now = Date.now();
-    const activeQuotes = Array.from(this.lockedQuotes.values()).filter(
-      (quote) => quote.expiresAt > now
-    );
+  async getAllActiveQuotes(): Promise<Quote[]> {
+    try {
+      const now = new Date();
 
-    // Cleanup expired quotes
-    for (const [id, quote] of this.lockedQuotes.entries()) {
-      if (quote.expiresAt <= now) {
-        this.lockedQuotes.delete(id);
-      }
+      // First, cleanup expired quotes
+      await prisma.quote.deleteMany({
+        where: {
+          expiresAt: {
+            lte: now,
+          },
+        },
+      });
+
+      // Then fetch active quotes
+      const dbQuotes = await prisma.quote.findMany({
+        where: {
+          expiresAt: {
+            gt: now,
+          },
+        },
+      });
+
+      const activeQuotes: Quote[] = dbQuotes.map((dbQuote) => ({
+        id: dbQuote.quoteId,
+        userId: dbQuote.userId,
+        type: dbQuote.type === "ETH_INR" ? "ETH/INR" : "USD/INR",
+        inrAmount: Number.parseFloat(dbQuote.inrAmount.toString()),
+        outputAmount: Number.parseFloat(dbQuote.outputAmount.toString()),
+        ethPrice: dbQuote.ethPrice
+          ? Number.parseFloat(dbQuote.ethPrice.toString())
+          : undefined,
+        inrPrice: Number.parseFloat(dbQuote.inrPrice.toString()),
+        lockedAt: dbQuote.lockedAt.getTime(),
+        expiresAt: dbQuote.expiresAt.getTime(),
+      }));
+
+      return activeQuotes;
+    } catch (error) {
+      console.error("Error fetching active quotes from database:", error);
+      return [];
     }
-
-    return activeQuotes;
   }
 
   stop() {
