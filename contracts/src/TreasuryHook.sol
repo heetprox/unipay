@@ -14,7 +14,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 interface ITicketNFT {
     function ownerOf(uint256 tokenId) external view returns (address);
 
-    function burn(uint256 tokenId) external;
+    function burn(bytes32 txnId) external;
 }
 
 interface ISponsorVault {

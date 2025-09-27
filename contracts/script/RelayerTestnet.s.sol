@@ -21,7 +21,7 @@ contract DeployRelayerTestnet is Script {
         0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3;
 
     address public constant TESTNET_OWNER =
-        0xc111Ea84c2FBF21E45d837FF32DD3399CBfeF480;
+        0x000002fde2Da878DfA26fCb0748C0b9A25e8acEb;
 
     function run() external {
         uint256 chainId = block.chainid;

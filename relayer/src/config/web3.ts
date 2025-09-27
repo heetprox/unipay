@@ -10,14 +10,12 @@ import {
   getContract,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base, mainnet } from "viem/chains";
+import { base, mainnet, unichain, unichainSepolia } from "viem/chains";
 import {
   type ChainConfigs,
   type SupportedChain,
   type SupportedChainId,
-  sepoliaUnichain,
   supportedChains,
-  unichain,
 } from "../types/chains";
 
 dotenv.config();
@@ -27,7 +25,8 @@ const account = privateKeyToAccount(process.env.PRIVATE_KEY! as `0x${string}`);
 const chainConfigs: ChainConfigs = {
   [mainnet.id]: {
     relayerContract: process.env.ETHEREUM_RELAYER_CONTRACT! as `0x${string}`,
-    ticketNftContract: process.env.ETHEREUM_TICKET_NFT_CONTRACT! as `0x${string}`,
+    ticketNftContract: process.env
+      .ETHEREUM_TICKET_NFT_CONTRACT! as `0x${string}`,
   },
   [base.id]: {
     relayerContract: process.env.BASE_RELAYER_CONTRACT! as `0x${string}`,
@@ -35,9 +34,15 @@ const chainConfigs: ChainConfigs = {
   },
   [unichain.id]: {
     relayerContract: process.env.UNICHAIN_RELAYER_CONTRACT! as `0x${string}`,
-    ticketNftContract: process.env.UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
+    ticketNftContract: process.env
+      .UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
   },
-  // Note: Sepolia Unichain shares same ID as Unichain for now
+  [unichainSepolia.id]: {
+    relayerContract: process.env
+      .SEPOLIA_UNICHAIN_RELAYER_CONTRACT! as `0x${string}`,
+    ticketNftContract: process.env
+      .SEPOLIA_UNICHAIN_TICKET_NFT_CONTRACT! as `0x${string}`,
+  },
 };
 
 const publicClients = new Map<SupportedChainId, PublicClient>();
@@ -69,9 +74,9 @@ function getRpcUrl(chainId: SupportedChainId): string {
     case base.id:
       return process.env.BASE_RPC_URL!;
     case unichain.id:
-    case sepoliaUnichain.id:
-      // Both use same RPC for now since they have same chain ID
       return process.env.UNICHAIN_RPC_URL!;
+    case unichainSepolia.id:
+      return process.env.SEPOLIA_UNICHAIN_RPC_URL!;
     default:
       throw new Error(`RPC URL not configured for chain ${chainId}`);
   }
@@ -210,7 +215,9 @@ export const getTicketContract = (chainId: SupportedChainId) => {
   });
 };
 
-export const isChainSupported = (chainId: number): chainId is SupportedChainId => {
+export const isChainSupported = (
+  chainId: number
+): chainId is SupportedChainId => {
   return supportedChains.some((chain) => chain.id === chainId);
 };
 

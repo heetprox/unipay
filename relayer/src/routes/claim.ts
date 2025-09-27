@@ -4,10 +4,8 @@ import prisma from "../config/database";
 import {
   account,
   getChain,
-  getChainConfig,
   getPublicClient,
   getRelayerContract,
-  getTicketContract,
   getWalletClient,
   isChainSupported,
 } from "../config/web3";
@@ -19,11 +17,20 @@ const router: Router = Router();
 router.post("/usdc", async (req: Request, res: Response) => {
   try {
     const validatedData = claimUsdcSchema.parse(req.body);
-    const { chainId, transactionId, user, ethAmount, minimumUSDCOutput, deadline } = validatedData;
+    const {
+      chainId,
+      transactionId,
+      user,
+      ethAmount,
+      minimumUSDCOutput,
+      deadline,
+    } = validatedData;
 
     // Validate chain is supported
     if (!isChainSupported(chainId)) {
-      return res.status(400).json({ error: `Chain ${chainId} is not supported` });
+      return res
+        .status(400)
+        .json({ error: `Chain ${chainId} is not supported` });
     }
 
     const payment = await prisma.payment.findUnique({
@@ -40,24 +47,20 @@ router.post("/usdc", async (req: Request, res: Response) => {
     }
 
     const mintJob = payment.jobs.find(
-      (job: { method: string; status: string }) => job.method === "MINT" && job.status === "MINED"
+      (job: { method: string; status: string }) =>
+        job.method === "MINT" && job.status === "MINED"
     );
     if (!mintJob) {
-      return res.status(400).json({ error: "Ticket not minted or mint failed" });
+      return res
+        .status(400)
+        .json({ error: "Ticket not minted or mint failed" });
     }
 
     try {
-      const ticketContract = getTicketContract(chainId as SupportedChainId);
       const relayerContract = getRelayerContract(chainId as SupportedChainId);
       const walletClient = getWalletClient(chainId as SupportedChainId);
-      const config = getChainConfig(chainId as SupportedChainId);
 
       const txHash = stringToHex(transactionId, { size: 32 });
-      const ticketOwner = await ticketContract.read.ownerOfTxn([txHash]);
-
-      if (ticketOwner.toLowerCase() !== config.relayerContract.toLowerCase()) {
-        return res.status(400).json({ error: "Ticket not owned by relayer contract" });
-      }
 
       const chain = getChain(chainId as SupportedChainId);
       const hash = await relayerContract.write.swapETHToUSDC(
@@ -116,18 +119,26 @@ router.post("/usdc", async (req: Request, res: Response) => {
           method: "CLAIM_USDC",
           status: "FAILED",
           chainId,
-          error: contractError instanceof Error ? contractError.message : "Unknown contract error",
+          error:
+            contractError instanceof Error
+              ? contractError.message
+              : "Unknown contract error",
         },
       });
 
       res.status(500).json({
         error: "Claim failed",
-        details: contractError instanceof Error ? contractError.message : "Unknown error",
+        details:
+          contractError instanceof Error
+            ? contractError.message
+            : "Unknown error",
       });
     }
   } catch (error) {
     if (error instanceof Error && "issues" in error) {
-      return res.status(400).json({ error: "Validation failed", details: error.issues });
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: error.issues });
     }
     console.error("Claim USDC error:", error);
     res.status(500).json({ error: "Failed to process claim" });
@@ -137,11 +148,20 @@ router.post("/usdc", async (req: Request, res: Response) => {
 router.post("/eth", async (req: Request, res: Response) => {
   try {
     const validatedData = claimEthSchema.parse(req.body);
-    const { chainId, transactionId, user, usdcAmount, minimumETHOutput, deadline } = validatedData;
+    const {
+      chainId,
+      transactionId,
+      user,
+      usdcAmount,
+      minimumETHOutput,
+      deadline,
+    } = validatedData;
 
     // Validate chain is supported
     if (!isChainSupported(chainId)) {
-      return res.status(400).json({ error: `Chain ${chainId} is not supported` });
+      return res
+        .status(400)
+        .json({ error: `Chain ${chainId} is not supported` });
     }
 
     const payment = await prisma.payment.findUnique({
@@ -158,26 +178,22 @@ router.post("/eth", async (req: Request, res: Response) => {
     }
 
     const mintJob = payment.jobs.find(
-      (job: { method: string; status: string }) => job.method === "MINT" && job.status === "MINED"
+      (job: { method: string; status: string }) =>
+        job.method === "MINT" && job.status === "MINED"
     );
     if (!mintJob) {
-      return res.status(400).json({ error: "Ticket not minted or mint failed" });
+      return res
+        .status(400)
+        .json({ error: "Ticket not minted or mint failed" });
     }
 
     try {
-      const ticketContract = getTicketContract(chainId as SupportedChainId);
       const relayerContract = getRelayerContract(chainId as SupportedChainId);
       const walletClient = getWalletClient(chainId as SupportedChainId);
-      const config = getChainConfig(chainId as SupportedChainId);
 
       const txHash = stringToHex(transactionId, { size: 32 });
-      const ticketOwner = await ticketContract.read.ownerOfTxn([txHash]);
 
-      if (ticketOwner.toLowerCase() !== config.relayerContract.toLowerCase()) {
-        return res.status(400).json({ error: "Ticket not owned by relayer contract" });
-      }
-
-      const chain2 = getChain(chainId as SupportedChainId);
+      const chain = getChain(chainId as SupportedChainId);
       const hash = await relayerContract.write.swapUSDCToETH(
         [
           txHash,
@@ -188,7 +204,7 @@ router.post("/eth", async (req: Request, res: Response) => {
         ],
         {
           account: account.address,
-          chain: chain2,
+          chain,
         }
       );
 
@@ -202,8 +218,8 @@ router.post("/eth", async (req: Request, res: Response) => {
         },
       });
 
-      const publicClient2 = getPublicClient(chainId as SupportedChainId);
-      const receipt = await publicClient2.waitForTransactionReceipt({ hash });
+      const publicClient = getPublicClient(chainId as SupportedChainId);
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
       await prisma.job.updateMany({
         where: {
@@ -234,18 +250,26 @@ router.post("/eth", async (req: Request, res: Response) => {
           method: "CLAIM_ETH",
           status: "FAILED",
           chainId,
-          error: contractError instanceof Error ? contractError.message : "Unknown contract error",
+          error:
+            contractError instanceof Error
+              ? contractError.message
+              : "Unknown contract error",
         },
       });
 
       res.status(500).json({
         error: "Claim failed",
-        details: contractError instanceof Error ? contractError.message : "Unknown error",
+        details:
+          contractError instanceof Error
+            ? contractError.message
+            : "Unknown error",
       });
     }
   } catch (error) {
     if (error instanceof Error && "issues" in error) {
-      return res.status(400).json({ error: "Validation failed", details: error.issues });
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: error.issues });
     }
     console.error("Claim ETH error:", error);
     res.status(500).json({ error: "Failed to process claim" });

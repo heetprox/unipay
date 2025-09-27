@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const upiInitiateSchema = z.object({
   amount: z.string().min(1, "Amount is required"),
+  chainId: z.number().int().min(1, "Valid chain ID required"),
 });
 
 export const upiCallbackSchema = z.object({

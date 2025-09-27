@@ -12,6 +12,7 @@ model Payment {
   transactionId String   @unique
   status        PaymentStatus
   amount        String?
+  chainId       Int?
   upiRef        String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
