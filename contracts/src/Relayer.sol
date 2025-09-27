@@ -5,17 +5,39 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {IUniswapV4Router04} from "./V4Swap.sol";
 import {TicketNFT} from "./TicketNFT.sol";
+
+// Universal Router interface
+interface IUniversalRouter {
+    function execute(
+        bytes calldata commands,
+        bytes[] calldata inputs,
+        uint256 deadline
+    ) external payable;
+}
+
+// Commands and Actions constants
+library Commands {
+    uint8 constant V4_SWAP = 0x10;
+}
+
+// IV4Router struct
+struct ExactInputSingleParams {
+    PoolKey poolKey;
+    bool zeroForOne;
+    uint128 amountIn;
+    uint128 amountOutMinimum;
+    bytes hookData;
+}
 
 contract Relayer is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    IUniswapV4Router04 public immutable v4Router;
+    IUniversalRouter public immutable universalRouter;
     IERC20 public immutable usdc;
     address public immutable nativeTokenAddress;
     address public immutable usdcTokenAddress;
@@ -72,7 +94,7 @@ contract Relayer is Ownable, ReentrancyGuard {
         uint24 fee,
         int24 spacing
     ) Ownable(contractOwner) {
-        v4Router = IUniswapV4Router04(uniswapV4Router);
+        universalRouter = IUniversalRouter(uniswapV4Router);
         usdc = IERC20(usdcToken);
         ticketContract = ticketNFTContract;
         nativeTokenAddress = nativeToken;
@@ -183,15 +205,25 @@ contract Relayer is Ownable, ReentrancyGuard {
 
         if (address(this).balance < ethAmount) revert InsufficientETHBalance();
 
-        usdcOutput = v4Router.swapExactTokensForTokens{value: ethAmount}(
-            ethAmount,
-            minimumUSDCOutput,
-            true,
+        // Store initial USDC balance to calculate output
+        uint256 initialUSDCBalance = usdc.balanceOf(address(this));
+
+        // Execute swap using Universal Router
+        _executeV4Swap(
             poolKey,
-            "",
-            user,
-            block.timestamp + 300
+            true, // zeroForOne (ETH -> USDC)
+            uint128(ethAmount),
+            uint128(minimumUSDCOutput)
         );
+
+        // Calculate actual USDC output received
+        uint256 finalUSDCBalance = usdc.balanceOf(address(this));
+        usdcOutput = finalUSDCBalance - initialUSDCBalance;
+
+        require(usdcOutput >= minimumUSDCOutput, "Insufficient output amount");
+
+        // Transfer USDC to user
+        usdc.safeTransfer(user, usdcOutput);
 
         emit ETHToUSDCSwapExecuted(transactionId, user, ethAmount, usdcOutput);
     }
@@ -202,25 +234,88 @@ contract Relayer is Ownable, ReentrancyGuard {
         uint256 usdcAmount,
         uint256 minimumETHOutput
     ) internal returns (uint256 ethOutput) {
-        consumeTicket(transactionId, user);
+        // consumeTicket(transactionId, user);
 
         if (usdc.balanceOf(address(this)) < usdcAmount)
             revert InsufficientUSDCBalance();
 
-        usdc.approve(address(v4Router), 0);
-        usdc.safeIncreaseAllowance(address(v4Router), usdcAmount);
+        // Store initial ETH balance to calculate output
+        uint256 initialETHBalance = address(this).balance;
 
-        ethOutput = v4Router.swapExactTokensForTokens(
-            usdcAmount,
-            minimumETHOutput,
-            false,
+        // Approve USDC for Universal Router
+        usdc.approve(address(universalRouter), 0);
+        usdc.safeIncreaseAllowance(address(universalRouter), usdcAmount);
+
+        // Execute swap using Universal Router
+        _executeV4Swap(
             poolKey,
-            "",
-            user,
-            block.timestamp + 300
+            false, // zeroForOne (USDC -> ETH)
+            uint128(usdcAmount),
+            uint128(minimumETHOutput)
         );
 
+        // Calculate actual ETH output received
+        uint256 finalETHBalance = address(this).balance;
+        ethOutput = finalETHBalance - initialETHBalance;
+
+        require(ethOutput >= minimumETHOutput, "Insufficient output amount");
+
+        // Transfer ETH to user
+        (bool success, ) = payable(user).call{value: ethOutput}("");
+        require(success, "ETH transfer failed");
+
         emit USDCToETHSwapExecuted(transactionId, user, usdcAmount, ethOutput);
+    }
+
+    function _executeV4Swap(
+        PoolKey memory key,
+        bool zeroForOne,
+        uint128 amountIn,
+        uint128 minAmountOut
+    ) internal {
+        // Encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
+        // Encode V4Router actions
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_IN_SINGLE),
+            uint8(Actions.SETTLE_ALL),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        // Prepare parameters for each action
+        bytes[] memory params = new bytes[](3);
+        params[0] = abi.encode(
+            ExactInputSingleParams({
+                poolKey: key,
+                zeroForOne: zeroForOne,
+                amountIn: amountIn,
+                amountOutMinimum: minAmountOut,
+                hookData: bytes("")
+            })
+        );
+
+        if (zeroForOne) {
+            // ETH -> USDC swap
+            params[1] = abi.encode(key.currency0, amountIn);
+            params[2] = abi.encode(key.currency1, minAmountOut);
+        } else {
+            // USDC -> ETH swap
+            params[1] = abi.encode(key.currency1, amountIn);
+            params[2] = abi.encode(key.currency0, minAmountOut);
+        }
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+
+        // Execute the swap with deadline
+        uint256 deadline = block.timestamp + 300;
+        universalRouter.execute{value: zeroForOne ? amountIn : 0}(
+            commands,
+            inputs,
+            deadline
+        );
     }
 
     function consumeTicket(bytes32 transactionId, address user) internal {

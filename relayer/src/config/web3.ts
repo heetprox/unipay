@@ -126,9 +126,8 @@ export const RELAYER_ABI = [
       { name: "user", type: "address" },
       { name: "ethAmount", type: "uint256" },
       { name: "minimumUSDCOutput", type: "uint256" },
-      { name: "deadline", type: "uint64" },
     ],
-    outputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "usdcOutput", type: "uint256" }],
     stateMutability: "nonpayable",
   },
   {
@@ -139,9 +138,8 @@ export const RELAYER_ABI = [
       { name: "user", type: "address" },
       { name: "usdcAmount", type: "uint256" },
       { name: "minimumETHOutput", type: "uint256" },
-      { name: "deadline", type: "uint64" },
     ],
-    outputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "ethOutput", type: "uint256" }],
     stateMutability: "nonpayable",
   },
   {
@@ -157,6 +155,51 @@ export const RELAYER_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "bool" }],
     stateMutability: "view",
+  },
+  {
+    type: "error",
+    name: "UnauthorizedRelayer",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ContractPaused",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidUser",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TransactionExpired",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TicketNotOwnedByContract",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientETHBalance",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientUSDCBalance",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidRecipient",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ETHTransferFailed",
+    inputs: [],
   },
 ] as const;
 

@@ -89,7 +89,7 @@ router.post("/init", async (req: Request, res: Response) => {
       const user = lockedQuote.userId; // Assuming userId is the Ethereum address
 
       // Calculate minimum output with some slippage protection (e.g., 5% slippage)
-      const slippagePercent = 0.05; // 5% slippage
+      const slippagePercent = 0.5; // 5% slippage
 
       // Predefined deadline (e.g., 30 minutes from now)
       const deadline = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes
@@ -113,7 +113,6 @@ router.post("/init", async (req: Request, res: Response) => {
             user as `0x${string}`,
             parseUnits(lockedQuote.inputAmount.toString(), 6), // USDC input amount (6 decimals)
             parseEther(minimumETHOutput.toString()), // Minimum ETH output (18 decimals)
-            BigInt(deadline),
           ],
         } as any);
         method = "CLAIM_ETH";
@@ -133,7 +132,6 @@ router.post("/init", async (req: Request, res: Response) => {
             user as `0x${string}`,
             parseEther(lockedQuote.inputAmount.toString()), // ETH input amount (18 decimals)
             parseUnits(minimumUSDCOutput.toString(), 6), // Minimum USDC output (6 decimals)
-            BigInt(deadline),
           ],
         } as any);
         method = "CLAIM_USDC";
@@ -182,7 +180,6 @@ router.post("/init", async (req: Request, res: Response) => {
             ? lockedQuote.outputAmount * (1 - slippagePercent)
             : lockedQuote.outputAmount * (1 - slippagePercent),
         slippagePercent,
-        deadline,
         chainId: payment.chainId,
         txHash: hash,
         blockNumber: Number(receipt.blockNumber),

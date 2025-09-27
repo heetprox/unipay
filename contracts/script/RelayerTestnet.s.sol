@@ -68,8 +68,14 @@ contract DeployRelayerTestnet is Script {
         ticketETHUSDC.setHook(address(relayerETHUSDC));
         relayerETHUSDC.updateRelayerAuthorization(msg.sender, true);
 
+        // Fund the relayer contract with 0.001 ETH
+        uint256 fundingAmount = 0.001 ether;
+        (bool success,) = payable(address(relayerETHUSDC)).call{value: fundingAmount}("");
+        require(success, "Failed to fund Relayer contract with ETH");
+
         console.log("ETH/USDC TicketNFT deployed at:", address(ticketETHUSDC));
         console.log("ETH/USDC Relayer deployed at:", address(relayerETHUSDC));
+        console.log("Relayer funded with ETH:", fundingAmount);
 
         console.log("\n=== TESTNET DEPLOYMENT SUMMARY ===");
         console.log("Network: Unichain Testnet");
@@ -122,8 +128,14 @@ contract DeployRelayerTestnet is Script {
         ticket.setHook(address(relayer));
         relayer.updateRelayerAuthorization(msg.sender, true);
 
+        // Fund the relayer contract with 0.001 ETH
+        uint256 fundingAmount = 0.001 ether;
+        (bool success,) = payable(address(relayer)).call{value: fundingAmount}("");
+        require(success, "Failed to fund Relayer contract with ETH");
+
         console.log("Custom TicketNFT:", address(ticket));
         console.log("Custom Relayer:", address(relayer));
+        console.log("Custom Relayer funded with ETH:", fundingAmount);
 
         vm.stopBroadcast();
     }
@@ -138,6 +150,30 @@ contract DeployRelayerTestnet is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         deployUnichainTestnet();
+
+        vm.stopBroadcast();
+    }
+
+    function fundExistingRelayer(address relayerAddress, uint256 amount) external {
+        require(
+            block.chainid == UNICHAIN_TESTNET_ID,
+            "This script is only for Unichain testnet"
+        );
+        require(relayerAddress != address(0), "Invalid relayer address");
+        require(amount > 0, "Amount must be greater than 0");
+
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
+
+        console.log("Funding existing relayer at:", relayerAddress);
+        console.log("Amount to fund:", amount);
+        console.log("Deployer balance before:", address(msg.sender).balance);
+
+        (bool success,) = payable(relayerAddress).call{value: amount}("");
+        require(success, "Failed to fund Relayer contract");
+
+        console.log("Successfully funded relayer with:", amount);
+        console.log("Deployer balance after:", address(msg.sender).balance);
 
         vm.stopBroadcast();
     }

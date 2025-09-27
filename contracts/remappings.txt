@@ -3,5 +3,5 @@
 forge-std/=node_modules/forge-std/src/
 @pythnetwork/pyth-sdk-solidity/=node_modules/@pythnetwork/pyth-sdk-solidity/
 @openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
-
+@uniswap/universal-router/=node_modules/universal-router/
 @src/=./src/

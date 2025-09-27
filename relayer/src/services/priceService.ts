@@ -244,6 +244,13 @@ class PriceService extends EventEmitter {
     // For ETH/INR swaps, we need USDC input to get ETH output
     const usdcAmount = usdAmount; // This is the USDC amount needed
 
+    console.log("calculateETHAmount result:", {
+      ethAmount,
+      usdcAmount,
+      ethPrice,
+      inrPrice,
+    });
+
     return {
       ethAmount,
       usdcAmount,
@@ -276,6 +283,13 @@ class PriceService extends EventEmitter {
     // For USD/INR swaps, we need ETH input to get USDC output
     const ethAmount = usdAmount / ethPrice; // This is the ETH amount needed
 
+    console.log("calculateUSDAmount result:", {
+      usdAmount,
+      ethAmount,
+      ethPrice,
+      inrPrice,
+    });
+
     return {
       usdAmount,
       ethAmount,
@@ -301,7 +315,10 @@ class PriceService extends EventEmitter {
       const expiresAt = Date.now() + 15000; // 5 seconds
 
       try {
-        await prisma.quote.create({
+        console.log("ETH/INR Quote calculation:", calculation);
+        console.log("About to save quote with inputAmount (USDC):", calculation.usdcAmount.toString());
+        
+        const createdQuote = await prisma.quote.create({
           data: {
             quoteId,
             userId,
@@ -314,6 +331,8 @@ class PriceService extends EventEmitter {
             expiresAt: new Date(expiresAt),
           },
         });
+        
+        console.log("Successfully saved quote:", createdQuote);
 
         quote = {
           id: quoteId,
@@ -342,7 +361,10 @@ class PriceService extends EventEmitter {
       const expiresAt = Date.now() + 5000; // 5 seconds
 
       try {
-        await prisma.quote.create({
+        console.log("USD/INR Quote calculation:", calculation);
+        console.log("About to save quote with inputAmount (ETH):", calculation.ethAmount.toString());
+        
+        const createdQuote = await prisma.quote.create({
           data: {
             quoteId,
             userId,
@@ -355,6 +377,8 @@ class PriceService extends EventEmitter {
             expiresAt: new Date(expiresAt),
           },
         });
+        
+        console.log("Successfully saved quote:", createdQuote);
 
         quote = {
           id: quoteId,
