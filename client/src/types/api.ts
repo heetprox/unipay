@@ -93,6 +93,12 @@
     lockedQuoteId: string;
   }
 
+  export interface ChainInfo {
+    chainId: number;
+    chainName: string;
+    status: string;
+  }
+
   export interface UpiInitiateResponse {
     transactionId: string;
     intentUrl: string;
