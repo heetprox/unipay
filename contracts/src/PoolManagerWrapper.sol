@@ -83,7 +83,6 @@ contract PoolManagerWrapper is Ownable {
         poolKeyHash = hashPoolKey(poolKey);
         require(poolEnabled[poolKeyHash], "PoolDisabled");
 
-        // Simplified hookData without outputToken
         bytes memory hookData = abi.encode(
             txnId,
             user,
@@ -94,33 +93,38 @@ contract PoolManagerWrapper is Ownable {
             zeroForOne
         );
 
-        // Simple swap params - the hook will handle the actual swap logic
         SwapParams memory swapParams = SwapParams({
             zeroForOne: zeroForOne,
             amountSpecified: zeroForOne ? -int256(maxIn) : int256(maxIn),
             sqrtPriceLimitX96: 0
         });
 
-        // Use unlock pattern required by Uniswap V4
         bytes memory unlockData = abi.encode(poolKey, swapParams, hookData);
         poolManager.unlock(unlockData);
 
         emit SwapSubmitted(poolKeyHash, txnId, user, mode, false);
     }
 
-    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+    function unlockCallback(
+        bytes calldata data
+    ) external returns (bytes memory) {
         require(msg.sender == address(poolManager), "NotPoolManager");
 
-        (PoolKey memory poolKey, SwapParams memory swapParams, bytes memory hookData) = 
-            abi.decode(data, (PoolKey, SwapParams, bytes));
+        (
+            PoolKey memory poolKey,
+            SwapParams memory swapParams,
+            bytes memory hookData
+        ) = abi.decode(data, (PoolKey, SwapParams, bytes));
 
-        // Execute the swap with hook - the hook will handle the actual swap logic
         BalanceDelta delta = poolManager.swap(poolKey, swapParams, hookData);
 
         return abi.encode(delta);
     }
-    
-    function getClaimBalance(address user, address token) external view returns (uint256) {
+
+    function getClaimBalance(
+        address user,
+        address token
+    ) external view returns (uint256) {
         uint256 tokenId = uint256(uint160(token));
         return poolManager.balanceOf(user, tokenId);
     }
@@ -132,10 +136,9 @@ contract PoolManagerWrapper is Ownable {
     ) external {
         require(isRelayer[msg.sender], "NotRelayer");
         require(!paused, "Paused");
-        
-        // Simplified - let relayer claim tokens for user
+
         treasuryHook.claimTokensFor(user, token, amount);
-        
+
         emit TokensTaken(token, address(treasuryHook), user, amount);
     }
 
