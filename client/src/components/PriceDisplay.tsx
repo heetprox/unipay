@@ -171,7 +171,7 @@ export default function PriceDisplay() {
     }
 
     return (
-        <div className="w-full max-w-md mx-auto p-4 bg-white/10 backdrop-blur-md rounded-lg shadow-md">
+        <div className="w-full mx-auto p-4 bg-white/10 backdrop-blur-md rounded-lg shadow-md">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">Live Prices</h3>
                 <div className="flex items-center gap-2">

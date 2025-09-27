@@ -8,6 +8,14 @@
     src: url("/fonts/MilanoGraphicFestival-Regular.ttf") format("truetype");
 }
 
+@font-face {
+    font-family: "Metafora-BlackExtraExp";
+    src: url("/fonts/Metafora-BlackExtraExp.ttf") format("truetype");
+}
+.m-font{
+    font-family: "Metafora-BlackExtraExp";
+}
+
 .s-font {
     font-family: "MilanoGraphicFestival-Regular";
 }

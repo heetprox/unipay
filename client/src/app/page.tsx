@@ -7,12 +7,12 @@ import Background from "@/components/animations/BackGround";
 
 export default function Home() {
   return (
-    <div className="w-full min-h-screen">
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <div className="w-full min-h-screen h-[100vh]">
+      <div className="flex flex-col items-center justify-start  bg-gradient-to-t from-purple-950 to-black h-full">
         <div className="w-full max-w-6xl mx-auto">
-          <Background />
-          <div className="text-center mb-12 mt-20">
-            <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 b-font">
+          {/* <Background /> */}
+          <div className="text-center mb-12">
+            <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 m-font">
               Buy crypto @ lightning speed⚡
             </h1>
             <p className="text-xl text-gray-300 mb-2">
@@ -23,14 +23,14 @@ export default function Home() {
 
           {/* Main Content Grid */}
           {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start"> */}
-          <div className="gap-8 items-start">
+          <div className="gap-8 flex justify-center w-full">
             {/* Price Display */}
-            {/* <div className="order-2 lg:order-1">
+            <div className="order-2 lg:order-1 w-1/2">
               <PriceDisplay />
-            </div> */}
+            </div>
 
             {/* Payment Form */}
-            <div className="order-1 lg:order-2">
+            <div className="order-1 lg:order-2 w-1/2">
               <UpiPayment />
             </div>
           </div>
