@@ -1,0 +1,17 @@
+@font-face {
+    font-family: "Ibrand";
+    src: url("/fonts/Ibrand.otf") format("opentype");
+}
+
+@font-face {
+    font-family: "MilanoGraphicFestival-Regular";
+    src: url("/fonts/MilanoGraphicFestival-Regular.ttf") format("truetype");
+}
+
+.s-font {
+    font-family: "MilanoGraphicFestival-Regular";
+}
+
+.b-font {
+    font-family: "Ibrand";
+}
