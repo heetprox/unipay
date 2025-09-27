@@ -57,7 +57,7 @@ const navbarItems = [
   {
     id: 4,
     title: "Demo",
-    href: "/services",
+    href: "/demo",
   },
 ];
 

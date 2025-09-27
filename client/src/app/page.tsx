@@ -8,10 +8,10 @@ import Background from "@/components/animations/BackGround";
 export default function Home() {
   return (
     <div className="w-full min-h-screen">
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-6xl mx-auto">
           <Background />
-          <div className="text-center mb-12 mt-20">
+          <div className="text-center mt-8 mb-10">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 b-font">
               Buy crypto @ lightning speed⚡
             </h1>
@@ -36,7 +36,7 @@ export default function Home() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-wrap mt-10 justify-center gap-4">
             <SimpleButton title="Transaction Status" href="/payment/success" />
             <SimpleButton title="Claim Tokens" href="/claim" />
             <SimpleButton title="System Health" href="/health" />
