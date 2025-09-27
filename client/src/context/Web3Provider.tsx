@@ -23,6 +23,7 @@ if (!walletConnectProjectId) {
   throw new Error("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is required");
 }
 
+// from family.co wallet connect kit
 const config = createConfig(
   getDefaultConfig({
     // Your dApps chains
