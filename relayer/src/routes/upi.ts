@@ -1,0 +1,145 @@
+import { randomBytes } from "node:crypto";
+import { type Request, type Response, Router } from "express";
+import { stringToHex } from "viem";
+import prisma from "../config/database";
+import {
+  account,
+  getChain,
+  getChainConfig,
+  getPublicClient,
+  getRelayerContract,
+  getWalletClient,
+} from "../config/web3";
+import { upiCallbackSchema, upiInitiateSchema } from "../schemas/validation";
+import { unichain } from "../types/chains";
+
+const router: Router = Router();
+
+router.post("/initiate", async (req: Request, res: Response) => {
+  try {
+    const validatedData = upiInitiateSchema.parse(req.body);
+    const { amount } = validatedData;
+
+    const transactionId = randomBytes(32).toString("hex");
+
+    const payment = await prisma.payment.create({
+      data: {
+        transactionId,
+        status: "INITIATED",
+        amount: amount.toString(),
+      },
+    });
+
+    const dummyIntentUrl = `upi://pay?pa=merchant@upi&pn=UniPay&am=${amount}&tr=${transactionId}&tn=UniPay Payment`;
+
+    res.json({
+      transactionId,
+      intentUrl: dummyIntentUrl,
+      qrCode: `data:text/plain;base64,${Buffer.from(dummyIntentUrl).toString("base64")}`,
+    });
+  } catch (error) {
+    if (error instanceof Error && "issues" in error) {
+      return res.status(400).json({ error: "Validation failed", details: error.issues });
+    }
+    console.error("UPI initiate error:", error);
+    res.status(500).json({ error: "Failed to initiate payment" });
+  }
+});
+
+router.post("/callback", async (req: Request, res: Response) => {
+  try {
+    const validatedData = upiCallbackSchema.parse(req.body);
+    const { transactionId, status } = validatedData;
+
+    const existingPayment = await prisma.payment.findUnique({
+      where: { transactionId },
+    });
+
+    if (!existingPayment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    if (status === "success") {
+      await prisma.payment.update({
+        where: { transactionId },
+        data: { status: "SUCCESS" },
+      });
+
+      try {
+        // Default to Unichain for minting tickets
+        const chainId = unichain.id;
+        const relayerContract = getRelayerContract(chainId);
+        const walletClient = getWalletClient(chainId);
+        const txHash = stringToHex(transactionId, { size: 32 });
+
+        const chain = getChain(chainId);
+        const hash = await relayerContract.write.mintTicket([txHash], {
+          account: account.address,
+          chain,
+        });
+
+        await prisma.job.create({
+          data: {
+            transactionId,
+            method: "MINT",
+            status: "PENDING",
+            chainId: chainId,
+            txHash: hash,
+          },
+        });
+
+        const publicClient = getPublicClient(chainId);
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+        await prisma.job.updateMany({
+          where: {
+            transactionId,
+            method: "MINT",
+            txHash: hash,
+          },
+          data: {
+            status: "MINED",
+            blockNumber: Number(receipt.blockNumber),
+            gasUsed: receipt.gasUsed.toString(),
+          },
+        });
+
+        res.json({
+          success: true,
+          message: "Payment processed and ticket minted",
+          chainId: chainId,
+          txHash: hash,
+        });
+      } catch (contractError) {
+        console.error("Contract interaction error:", contractError);
+
+        await prisma.job.create({
+          data: {
+            transactionId,
+            method: "MINT",
+            status: "FAILED",
+            error:
+              contractError instanceof Error ? contractError.message : "Unknown contract error",
+          },
+        });
+
+        res.status(500).json({ error: "Payment updated but ticket minting failed" });
+      }
+    } else {
+      await prisma.payment.update({
+        where: { transactionId },
+        data: { status: "FAILED" },
+      });
+
+      res.json({ success: true, message: "Payment marked as failed" });
+    }
+  } catch (error) {
+    if (error instanceof Error && "issues" in error) {
+      return res.status(400).json({ error: "Validation failed", details: error.issues });
+    }
+    console.error("UPI callback error:", error);
+    res.status(500).json({ error: "Failed to process callback" });
+  }
+});
+
+export { router as upiRoutes };

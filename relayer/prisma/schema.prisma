@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  status        PaymentStatus
+  amount        String?
+  upiRef        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  jobs          Job[]
+  
+  @@map("payments")
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  transactionId String
+  method        JobMethod
+  status        JobStatus
+  chainId       Int?
+  txHash        String?
+  blockNumber   Int?
+  gasUsed       String?
+  error         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  payment       Payment   @relation(fields: [transactionId], references: [transactionId])
+  
+  @@map("jobs")
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+}
+
+enum JobMethod {
+  MINT
+  CLAIM_USDC
+  CLAIM_ETH
+}
+
+enum JobStatus {
+  PENDING
+  MINED
+  FAILED
+}
