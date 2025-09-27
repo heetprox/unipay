@@ -371,7 +371,7 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-3 p-4 bg-transparent text-white ">
+    <div className="w-full space-y-3 bg-transparent text-white ">
       {/* You Pay Section */}
       <div className="bg-neutral-800/80 rounded-2xl p-5 border border-neutral-700/50">
         <p className="text-gray-400 text-sm mb-3">You Pay</p>
