@@ -17,25 +17,23 @@ import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol"
 contract CreatePoolAndSeed is Script, StdCheats {
     using PoolIdLibrary for PoolKey;
 
-    address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
+    address constant POOL_MANAGER = 0x00B036B58a818B1BC34d502D3fE730Db729e62AC;
     address constant POSITION_MANAGER =
-        0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+        0xf969Aee60879C54bAAed9F3eD26147Db216Fd664;
     address constant ETH = 0x0000000000000000000000000000000000000000;
-    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant USDC = 0x31d0220469e10c4E71834a79b1f276d740d3768F;
 
     uint24 constant POOL_FEE = 500;
     int24 constant TICK_SPACING = 10;
 
-    uint256 constant SEED_ETH = 0.00005 ether;
-    uint256 constant SEED_USDC = 0.2e6;
-
-    address constant USDC_WHALE = 0xcDAC0d6c6C59727a65F871236188350531885C43;
+    uint256 constant SEED_ETH = 0.0005 ether;
+    uint256 constant SEED_USDC = 20;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployerEOA = vm.addr(deployerPrivateKey);
+        address deployerEOA = 0x000002fde2Da878DfA26fCb0748C0b9A25e8acEb;
 
-        address hookAddress = vm.envAddress("TREASURY_HOOK");
+        address hookAddress = 0xB39f55223d711a3711212c41367BeD615e9700c0;
 
         console2.log("Initializing pool on Base mainnet fork...");
         console2.log("Deployer:", deployerEOA);
@@ -251,14 +249,14 @@ contract CreatePoolAndSeed is Script, StdCheats {
         console2.log("{");
         console2.log('  "poolKey": {');
         console2.log(
-            "    \"currency0\": \"",
+            '    "currency0": "',
             Currency.unwrap(poolKey.currency0),
-            "\","
+            '",'
         );
         console2.log(
-            "    \"currency1\": \"",
+            '    "currency1": "',
             Currency.unwrap(poolKey.currency1),
-            "\","
+            '",'
         );
         console2.log('    "fee": ', poolKey.fee, ",");
         console2.log(

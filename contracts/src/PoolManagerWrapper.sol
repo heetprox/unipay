@@ -60,7 +60,7 @@ contract PoolManagerWrapper is Ownable {
             ),
             fee: 500,
             tickSpacing: 10,
-            hooks: IHooks(address(0))
+            hooks: IHooks(address(_treasuryHook))
         });
         liquidPoolHash = keccak256(abi.encode(liquidPool));
     }
@@ -73,10 +73,8 @@ contract PoolManagerWrapper is Ownable {
         uint256 minOut,
         uint256 maxIn,
         uint8 mode,
-        bool immediateTake,
-        address currencyOut,
-        uint256 takeAmount
-    ) external returns (bytes32 poolKeyHash, bytes memory swapResult) {
+        bool zeroForOne
+    ) external returns (bytes32 poolKeyHash) {
         require(isRelayer[msg.sender], "NotRelayer");
         require(!paused, "Paused");
         require(user != address(0), "BadUser");
@@ -85,110 +83,60 @@ contract PoolManagerWrapper is Ownable {
         poolKeyHash = hashPoolKey(poolKey);
         require(poolEnabled[poolKeyHash], "PoolDisabled");
 
+        // Simplified hookData without outputToken
         bytes memory hookData = abi.encode(
             txnId,
             user,
             deadline,
             minOut,
             maxIn,
-            mode
+            mode,
+            zeroForOne
         );
 
-        treasuryHook.validateSwap(hookData);
-
+        // Simple swap params - the hook will handle the actual swap logic
         SwapParams memory swapParams = SwapParams({
-            zeroForOne: true,
-            amountSpecified: -int256(maxIn),
+            zeroForOne: zeroForOne,
+            amountSpecified: zeroForOne ? -int256(maxIn) : int256(maxIn),
             sqrtPriceLimitX96: 0
         });
 
-        bytes memory multicallData = abi.encode(
-            false,
-            liquidPool,
-            bytes(""),
-            immediateTake,
-            currencyOut,
-            takeAmount,
-            user
-        );
+        // Use unlock pattern required by Uniswap V4
+        bytes memory unlockData = abi.encode(poolKey, swapParams, hookData);
+        poolManager.unlock(unlockData);
 
-        swapResult = poolManager.unlock(multicallData);
-
-        emit SwapSubmitted(poolKeyHash, txnId, user, mode, immediateTake);
-
-        if (immediateTake) {
-            emit ImmediateTake(poolKeyHash, currencyOut, takeAmount, user);
-        }
+        emit SwapSubmitted(poolKeyHash, txnId, user, mode, false);
     }
 
-    function takeTokens(
-        address currency,
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bytes memory result) {
-        require(isRelayer[msg.sender], "NotRelayer");
-        require(!paused, "Paused");
-        require(from != address(0), "BadFrom");
-        require(to != address(0), "BadTo");
-        require(amount > 0, "ZeroAmount");
-
-        uint256 userBalance = poolManager.balanceOf(
-            from,
-            uint256(uint160(currency))
-        );
-        require(userBalance >= amount, "InsufficientBalance");
-
-        bytes memory unlockData = abi.encode(true, currency, from, to, amount);
-
-        result = poolManager.unlock(unlockData);
-
-        emit TokensTaken(currency, from, to, amount);
-    }
-
-    function lockAcquired(bytes calldata data) external returns (bytes memory) {
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(poolManager), "NotPoolManager");
 
-        bool isTakeOnly = abi.decode(data, (bool));
+        (PoolKey memory poolKey, SwapParams memory swapParams, bytes memory hookData) = 
+            abi.decode(data, (PoolKey, SwapParams, bytes));
 
-        if (isTakeOnly) {
-            (, address currency, address from, address to, uint256 amount) = abi
-                .decode(data, (bool, address, address, address, uint256));
+        // Execute the swap with hook - the hook will handle the actual swap logic
+        BalanceDelta delta = poolManager.swap(poolKey, swapParams, hookData);
 
-            poolManager.take(Currency.wrap(currency), to, amount);
-            return abi.encode(amount);
-        } else {
-            (
-                ,
-                PoolKey memory poolKey,
-                bytes memory hookData,
-                bool doTake,
-                address currencyOut,
-                uint256 takeAmount,
-                address user
-            ) = abi.decode(
-                    data,
-                    (bool, PoolKey, bytes, bool, address, uint256, address)
-                );
+        return abi.encode(delta);
+    }
+    
+    function getClaimBalance(address user, address token) external view returns (uint256) {
+        uint256 tokenId = uint256(uint160(token));
+        return poolManager.balanceOf(user, tokenId);
+    }
 
-            SwapParams memory swapParams = SwapParams({
-                zeroForOne: true,
-                amountSpecified: -1e18,
-                sqrtPriceLimitX96: 0
-            });
-
-            BalanceDelta delta = poolManager.swap(
-                poolKey,
-                swapParams,
-                bytes("")
-            );
-
-            if (doTake) {
-                poolManager.take(Currency.wrap(currencyOut), user, takeAmount);
-            }
-
-            return abi.encode(delta);
-        }
+    function claimUserTokens(
+        address user,
+        address token,
+        uint256 amount
+    ) external {
+        require(isRelayer[msg.sender], "NotRelayer");
+        require(!paused, "Paused");
+        
+        // Simplified - let relayer claim tokens for user
+        treasuryHook.claimTokensFor(user, token, amount);
+        
+        emit TokensTaken(token, address(treasuryHook), user, amount);
     }
 
     function setRelayer(address relayer, bool allowed) external onlyOwner {
