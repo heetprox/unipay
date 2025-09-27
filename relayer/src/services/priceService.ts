@@ -39,6 +39,7 @@ export interface Quote {
   type: "ETH/INR" | "USD/INR";
   inrAmount: number;
   outputAmount: number; // ETH amount for ETH/INR, USD amount for USD/INR
+  inputAmount: number; // USDC amount for ETH/INR, ETH amount for USD/INR
   ethPrice?: number; // Only for ETH/INR quotes
   inrPrice: number;
   lockedAt: number;
@@ -48,10 +49,8 @@ export interface Quote {
 class PriceService extends EventEmitter {
   private readonly HERMES_BASE_URL = "https://hermes.pyth.network";
   private readonly PRICE_FEED_IDS = {
-    "ETH/USD":
-      "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
-    "USD/INR":
-      "0x0ac0f9a2886fc2dd708bc66cc2cea359052ce89d324f45d95fadbc6c4fcf1809",
+    "ETH/USD": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+    "USD/INR": "0x0ac0f9a2886fc2dd708bc66cc2cea359052ce89d324f45d95fadbc6c4fcf1809",
   };
 
   private currentPrices: Map<string, PriceFeed> = new Map();
@@ -90,9 +89,7 @@ class PriceService extends EventEmitter {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(
-          `Failed to connect to price stream: ${response.statusText}`
-        );
+        throw new Error(`Failed to connect to price stream: ${response.statusText}`);
       }
 
       const reader = response.body?.getReader();
@@ -135,11 +132,9 @@ class PriceService extends EventEmitter {
       const symbol = this.getSymbolForId(data.price_feed.id);
       if (symbol) {
         const normalizedPrice =
-          Number.parseFloat(data.price_feed.price.price) *
-          10 ** data.price_feed.price.expo;
+          Number.parseFloat(data.price_feed.price.price) * 10 ** data.price_feed.price.expo;
         const confidence =
-          Number.parseFloat(data.price_feed.price.conf) *
-          10 ** data.price_feed.price.expo;
+          Number.parseFloat(data.price_feed.price.conf) * 10 ** data.price_feed.price.expo;
 
         const priceFeed: PriceFeed = {
           symbol,
@@ -156,18 +151,16 @@ class PriceService extends EventEmitter {
 
   private getSymbolForId(id: string): string | null {
     console.log("getSymbolForId called with ID:", id);
-    
+
     // Normalize the ID by ensuring it has 0x prefix
     const normalizedId = id.startsWith("0x") ? id : `0x${id}`;
     console.log("Normalized ID:", normalizedId);
-    
-    const entry = Object.entries(this.PRICE_FEED_IDS).find(
-      ([_, feedId]) => {
-        console.log("Comparing with feed ID:", feedId);
-        return feedId === normalizedId;
-      }
-    );
-    
+
+    const entry = Object.entries(this.PRICE_FEED_IDS).find(([_, feedId]) => {
+      console.log("Comparing with feed ID:", feedId);
+      return feedId === normalizedId;
+    });
+
     const symbol = entry ? entry[0] : null;
     console.log("Found symbol:", symbol);
     return symbol;
@@ -179,7 +172,7 @@ class PriceService extends EventEmitter {
         .map((id) => `ids[]=${id}`)
         .join("&");
       const url = `${this.HERMES_BASE_URL}/v2/updates/price/latest?${priceIds}&parsed=true`;
-      
+
       console.log("Fetching prices from URL:", url);
       console.log("Price feed IDs:", this.PRICE_FEED_IDS);
 
@@ -190,7 +183,7 @@ class PriceService extends EventEmitter {
 
       const data = (await response.json()) as PythPriceResponse;
       console.log("Received price data:", JSON.stringify(data, null, 2));
-      
+
       const prices = new Map<string, PriceFeed>();
 
       for (const priceUpdate of data.parsed) {
@@ -200,11 +193,9 @@ class PriceService extends EventEmitter {
 
         if (symbol) {
           const normalizedPrice =
-            Number.parseFloat(priceUpdate.price.price) *
-            10 ** priceUpdate.price.expo;
+            Number.parseFloat(priceUpdate.price.price) * 10 ** priceUpdate.price.expo;
           const confidence =
-            Number.parseFloat(priceUpdate.price.conf) *
-            10 ** priceUpdate.price.expo;
+            Number.parseFloat(priceUpdate.price.conf) * 10 ** priceUpdate.price.expo;
 
           const priceFeed = {
             symbol,
@@ -212,7 +203,7 @@ class PriceService extends EventEmitter {
             publishTime: priceUpdate.price.publishTime,
             confidence,
           };
-          
+
           console.log("Created price feed:", priceFeed);
           prices.set(symbol, priceFeed);
         } else {
@@ -235,7 +226,7 @@ class PriceService extends EventEmitter {
 
   calculateETHAmount(
     inrAmount: number
-  ): { ethAmount: number; ethPrice: number; inrPrice: number } | null {
+  ): { ethAmount: number; usdcAmount: number; ethPrice: number; inrPrice: number } | null {
     const ethUsd = this.currentPrices.get("ETH/USD");
     const usdInr = this.currentPrices.get("USD/INR");
 
@@ -250,20 +241,19 @@ class PriceService extends EventEmitter {
     const usdAmount = inrAmount / inrPrice;
     const ethAmount = usdAmount / ethPrice;
 
+    // For ETH/INR swaps, we need USDC input to get ETH output
+    const usdcAmount = usdAmount; // This is the USDC amount needed
+
     return {
       ethAmount,
+      usdcAmount,
       ethPrice,
       inrPrice,
     };
   }
 
-  calculateUSDAmount(
-    inrAmount: number
-  ): { usdAmount: number; inrPrice: number } | null {
-    console.log(
-      "Current prices in calculateUSDAmount:",
-      Array.from(this.currentPrices.keys())
-    );
+  calculateUSDAmount(inrAmount: number): { usdAmount: number; ethAmount: number; ethPrice: number; inrPrice: number } | null {
+    console.log("Current prices in calculateUSDAmount:", Array.from(this.currentPrices.keys()));
     const usdInr = this.currentPrices.get("USD/INR");
     console.log("USD/INR price data:", usdInr);
 
@@ -271,13 +261,25 @@ class PriceService extends EventEmitter {
       return null;
     }
 
+    const ethUsd = this.currentPrices.get("ETH/USD");
+    
+    if (!ethUsd) {
+      return null;
+    }
+
     const inrPrice = usdInr.price;
+    const ethPrice = ethUsd.price;
 
     // Convert INR to USD
     const usdAmount = inrAmount / inrPrice;
+    
+    // For USD/INR swaps, we need ETH input to get USDC output
+    const ethAmount = usdAmount / ethPrice; // This is the ETH amount needed
 
     return {
       usdAmount,
+      ethAmount,
+      ethPrice,
       inrPrice,
     };
   }
@@ -295,9 +297,7 @@ class PriceService extends EventEmitter {
         return null;
       }
 
-      const quoteId = `quote_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
+      const quoteId = `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const expiresAt = Date.now() + 15000; // 5 seconds
 
       try {
@@ -308,6 +308,7 @@ class PriceService extends EventEmitter {
             type: "ETH_INR",
             inrAmount: inrAmount.toString(),
             outputAmount: calculation.ethAmount.toString(),
+            inputAmount: calculation.usdcAmount.toString(),
             ethPrice: calculation.ethPrice.toString(),
             inrPrice: calculation.inrPrice.toString(),
             expiresAt: new Date(expiresAt),
@@ -320,6 +321,7 @@ class PriceService extends EventEmitter {
           type,
           inrAmount,
           outputAmount: calculation.ethAmount,
+          inputAmount: calculation.usdcAmount,
           ethPrice: calculation.ethPrice,
           inrPrice: calculation.inrPrice,
           lockedAt: Date.now(),
@@ -336,9 +338,7 @@ class PriceService extends EventEmitter {
         return null;
       }
 
-      const quoteId = `quote_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
+      const quoteId = `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const expiresAt = Date.now() + 5000; // 5 seconds
 
       try {
@@ -349,6 +349,8 @@ class PriceService extends EventEmitter {
             type: "USD_INR",
             inrAmount: inrAmount.toString(),
             outputAmount: calculation.usdAmount.toString(),
+            inputAmount: calculation.ethAmount.toString(),
+            ethPrice: calculation.ethPrice.toString(),
             inrPrice: calculation.inrPrice.toString(),
             expiresAt: new Date(expiresAt),
           },
@@ -360,6 +362,8 @@ class PriceService extends EventEmitter {
           type,
           inrAmount,
           outputAmount: calculation.usdAmount,
+          inputAmount: calculation.ethAmount,
+          ethPrice: calculation.ethPrice,
           inrPrice: calculation.inrPrice,
           lockedAt: Date.now(),
           expiresAt,
@@ -370,24 +374,10 @@ class PriceService extends EventEmitter {
       }
     }
 
-    // Auto-cleanup expired quote from database
-    setTimeout(async () => {
-      try {
-        await prisma.quote.delete({
-          where: { quoteId: quote.id },
-        });
-      } catch (error) {
-        // Quote might already be deleted, ignore error
-      }
-    }, 5000);
-
     return quote;
   }
 
-  async getLockedQuote(
-    quoteId: string,
-    userId?: string
-  ): Promise<Quote | null> {
+  async getLockedQuote(quoteId: string, userId?: string): Promise<Quote | null> {
     try {
       const dbQuote = await prisma.quote.findUnique({
         where: { quoteId },
@@ -401,12 +391,12 @@ class PriceService extends EventEmitter {
       }
 
       // Check if quote has expired
-      if (Date.now() > dbQuote.expiresAt.getTime()) {
-        await prisma.quote.delete({
-          where: { quoteId },
-        });
-        return null;
-      }
+      // if (Date.now() > dbQuote.expiresAt.getTime()) {
+      //   await prisma.quote.delete({
+      //     where: { quoteId },
+      //   });
+      //   return null;
+      // }
 
       const quote: Quote = {
         id: dbQuote.quoteId,
@@ -414,9 +404,8 @@ class PriceService extends EventEmitter {
         type: dbQuote.type === "ETH_INR" ? "ETH/INR" : "USD/INR",
         inrAmount: Number.parseFloat(dbQuote.inrAmount.toString()),
         outputAmount: Number.parseFloat(dbQuote.outputAmount.toString()),
-        ethPrice: dbQuote.ethPrice
-          ? Number.parseFloat(dbQuote.ethPrice.toString())
-          : undefined,
+        inputAmount: dbQuote.inputAmount ? Number.parseFloat(dbQuote.inputAmount.toString()) : 0,
+        ethPrice: dbQuote.ethPrice ? Number.parseFloat(dbQuote.ethPrice.toString()) : undefined,
         inrPrice: Number.parseFloat(dbQuote.inrPrice.toString()),
         lockedAt: dbQuote.lockedAt.getTime(),
         expiresAt: dbQuote.expiresAt.getTime(),
@@ -433,14 +422,14 @@ class PriceService extends EventEmitter {
     try {
       const now = new Date();
 
-      // First, cleanup expired quotes
-      await prisma.quote.deleteMany({
-        where: {
-          expiresAt: {
-            lte: now,
-          },
-        },
-      });
+      // // First, cleanup expired quotes
+      // await prisma.quote.deleteMany({
+      //   where: {
+      //     expiresAt: {
+      //       lte: now,
+      //     },
+      //   },
+      // });
 
       // Then fetch active quotes
       const dbQuotes = await prisma.quote.findMany({
@@ -457,9 +446,8 @@ class PriceService extends EventEmitter {
         type: dbQuote.type === "ETH_INR" ? "ETH/INR" : "USD/INR",
         inrAmount: Number.parseFloat(dbQuote.inrAmount.toString()),
         outputAmount: Number.parseFloat(dbQuote.outputAmount.toString()),
-        ethPrice: dbQuote.ethPrice
-          ? Number.parseFloat(dbQuote.ethPrice.toString())
-          : undefined,
+        inputAmount: dbQuote.inputAmount ? Number.parseFloat(dbQuote.inputAmount.toString()) : 0,
+        ethPrice: dbQuote.ethPrice ? Number.parseFloat(dbQuote.ethPrice.toString()) : undefined,
         inrPrice: Number.parseFloat(dbQuote.inrPrice.toString()),
         lockedAt: dbQuote.lockedAt.getTime(),
         expiresAt: dbQuote.expiresAt.getTime(),

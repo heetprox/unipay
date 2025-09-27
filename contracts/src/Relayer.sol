@@ -96,28 +96,6 @@ contract Relayer is Ownable, ReentrancyGuard {
         emit TicketMinted(transactionId, address(this));
     }
 
-    function mintTicketAndSwapETHToUSDC(
-        bytes32 transactionId,
-        address user,
-        uint256 ethAmount,
-        uint256 minimumUSDCOutput
-    )
-        external
-        onlyAuthorizedRelayer
-        whenNotPaused
-        nonReentrant
-        returns (uint256 usdcOutput)
-    {
-        ticketContract.mint(transactionId, address(this));
-        emit TicketMinted(transactionId, address(this));
-        usdcOutput = executeETHToUSDCSwap(
-            transactionId,
-            user,
-            ethAmount,
-            minimumUSDCOutput
-        );
-    }
-
     function swapETHToUSDC(
         bytes32 transactionId,
         address user,

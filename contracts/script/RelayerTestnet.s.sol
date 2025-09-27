@@ -18,7 +18,7 @@ contract DeployRelayerTestnet is Script {
     uint256 public constant UNICHAIN_TESTNET_ID = 1301;
 
     address public constant UNICHAIN_TESTNET_ROUTER =
-        0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3;
+        0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D;
 
     address public constant TESTNET_OWNER =
         0x000002fde2Da878DfA26fCb0748C0b9A25e8acEb;

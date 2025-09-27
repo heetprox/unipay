@@ -51,7 +51,7 @@ contract V4Swap is ReentrancyGuard {
     IERC20 public immutable USDC;
 
     address public constant V4_ROUTER_ADDRESS =
-        0x00000000000044a361Ae3cAc094c9D1b14Eece97;
+        0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D;
     address public constant CURRENCY_0 =
         0x0000000000000000000000000000000000000000;
     address public constant CURRENCY_1 =
