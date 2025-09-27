@@ -176,7 +176,6 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
       localStorage.setItem('qrCode', paymentResponse.qrCode);
       localStorage.setItem('intentUrl', paymentResponse.intentUrl);
       
-      // Redirect to QR payment page
       const qrPageUrl = `/payment/qr?txId=${paymentResponse.transactionId}&qr=${encodeURIComponent(paymentResponse.qrCode)}&intent=${encodeURIComponent(paymentResponse.intentUrl)}`;
       window.location.href = qrPageUrl;
     } catch (err) {

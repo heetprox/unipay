@@ -117,12 +117,7 @@ export default function QRPaymentPage() {
     if (qrCodeData) {
       try {
         await navigator.clipboard.writeText(qrCodeData);
-        // Show success message
-        const successDiv = document.createElement('div');
-        successDiv.className = 'fixed top-4 right-4 bg-green-900/90 border border-green-700 text-white p-3 rounded-lg z-50';
-        successDiv.textContent = 'UPI link copied to clipboard!';
-        document.body.appendChild(successDiv);
-        setTimeout(() => document.body.removeChild(successDiv), 3000);
+        showToast('UPI link copied to clipboard!', 'success');
       } catch (err) {
         console.error('Failed to copy UPI link:', err);
         // Fallback for older browsers
@@ -132,14 +127,34 @@ export default function QRPaymentPage() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        
-        const successDiv = document.createElement('div');
-        successDiv.className = 'fixed top-4 right-4 bg-green-900/90 border border-green-700 text-white p-3 rounded-lg z-50';
-        successDiv.textContent = 'UPI link copied to clipboard!';
-        document.body.appendChild(successDiv);
-        setTimeout(() => document.body.removeChild(successDiv), 3000);
+        showToast('UPI link copied to clipboard!', 'success');
       }
     }
+  };
+
+  const downloadQRCode = () => {
+    if (qrCodeImage) {
+      const link = document.createElement('a');
+      link.download = `upi-qr-${transactionId}.png`;
+      link.href = qrCodeImage;
+      link.click();
+      showToast('QR code downloaded!', 'success');
+    }
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning') => {
+    const toastDiv = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-900/90 border-green-700' : 
+                   type === 'error' ? 'bg-red-900/90 border-red-700' : 
+                   'bg-blue-900/90 border-blue-700';
+    toastDiv.className = `fixed top-4 right-4 ${bgColor} border text-white p-3 rounded-lg z-50 backdrop-blur-md`;
+    toastDiv.textContent = message;
+    document.body.appendChild(toastDiv);
+    setTimeout(() => {
+      if (document.body.contains(toastDiv)) {
+        document.body.removeChild(toastDiv);
+      }
+    }, 3000);
   };
 
   if (loading) {
@@ -251,7 +266,7 @@ export default function QRPaymentPage() {
           )}
         </div>
 
-        {/* UPI App Button */}
+        {/* Action Buttons */}
         <div className="space-y-3">
           <button
             onClick={openUpiApp}
@@ -261,12 +276,22 @@ export default function QRPaymentPage() {
             Open UPI App
           </button>
 
-          <button
-            onClick={copyUpiLink}
-            className="w-full bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/15 transition-all duration-300 text-sm"
-          >
-            Copy UPI Link
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={copyUpiLink}
+              className="bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/15 transition-all duration-300 text-sm"
+            >
+              Copy UPI Link
+            </button>
+            
+            <button
+              onClick={downloadQRCode}
+              disabled={!qrCodeImage}
+              className="bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/15 transition-all duration-300 text-sm disabled:opacity-50"
+            >
+              Download QR
+            </button>
+          </div>
         </div>
 
         {/* Instructions */}
