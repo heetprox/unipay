@@ -225,18 +225,41 @@ export default function QRPaymentPage() {
             {paymentStatus === 'checking' && <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />}
             {paymentStatus === 'success' && <CheckCircle className="w-4 h-4 text-green-400" />}
             {paymentStatus === 'failed' && <XCircle className="w-4 h-4 text-red-400" />}
+            {paymentStatus === 'pending' && <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse" />}
           </div>
-          <div className={`text-sm font-medium ${
+          <div className={`text-sm font-medium mb-2 ${
             paymentStatus === 'pending' ? 'text-yellow-400' :
             paymentStatus === 'checking' ? 'text-blue-400' :
             paymentStatus === 'success' ? 'text-green-400' :
             'text-red-400'
           }`}>
-            {paymentStatus === 'pending' && 'Waiting for payment...'}
+            {paymentStatus === 'pending' && 'Monitoring payment automatically...'}
             {paymentStatus === 'checking' && 'Checking payment status...'}
             {paymentStatus === 'success' && 'Payment successful! Redirecting...'}
             {paymentStatus === 'failed' && 'Payment failed'}
           </div>
+          
+          {paymentStatus === 'pending' && (
+            <div className="text-xs text-gray-400">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span>Auto-checking every 2 seconds</span>
+              </div>
+              <p className="mt-1">Complete your payment in the UPI app and we'll detect it automatically</p>
+            </div>
+          )}
+          
+          {paymentStatus === 'success' && (
+            <div className="text-xs text-green-300">
+              <p>🎉 Payment confirmed! Taking you to the next step...</p>
+            </div>
+          )}
+          
+          {paymentStatus === 'failed' && (
+            <div className="text-xs text-red-300">
+              <p>❌ Payment was not successful. You can try again or contact support.</p>
+            </div>
+          )}
         </div>
 
         {/* Payment Details */}
@@ -294,20 +317,29 @@ export default function QRPaymentPage() {
             Open UPI App
           </button>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={copyUpiLink}
-              className="bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/15 transition-all duration-300 text-sm"
+              className="bg-white/10 text-white py-2 px-3 rounded-lg hover:bg-white/15 transition-all duration-300 text-xs"
             >
-              Copy UPI Link
+              Copy Link
             </button>
             
             <button
               onClick={downloadQRCode}
               disabled={!qrCodeImage}
-              className="bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/15 transition-all duration-300 text-sm disabled:opacity-50"
+              className="bg-white/10 text-white py-2 px-3 rounded-lg hover:bg-white/15 transition-all duration-300 text-xs disabled:opacity-50"
             >
               Download QR
+            </button>
+            
+            <button
+              onClick={() => checkPaymentStatus(transactionId)}
+              disabled={paymentStatus === 'checking'}
+              className="bg-white/10 text-white py-2 px-3 rounded-lg hover:bg-white/15 transition-all duration-300 text-xs disabled:opacity-50 flex items-center justify-center gap-1"
+            >
+              <RefreshCw className={`w-3 h-3 ${paymentStatus === 'checking' ? 'animate-spin' : ''}`} />
+              Check Now
             </button>
           </div>
         </div>
