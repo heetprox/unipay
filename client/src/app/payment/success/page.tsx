@@ -7,7 +7,7 @@ import { useAccount } from 'wagmi';
 import TransactionStatus from '@/components/TransactionStatus';
 import ClaimTokens from '@/components/ClaimTokens';
 import Link from 'next/link';
-import { CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { TransactionStatusResponse } from '@/types/api';
 
 export default function PaymentSuccessPage() {
@@ -40,10 +40,23 @@ export default function PaymentSuccessPage() {
       const status = await UniPayAPI.getTransactionStatus(txId);
       setTransactionData(status);
       
-      if (status.payment.status === 'completed') {
+      // Check for SUCCESS status (from backend) or completed (alternative)
+      if (status.payment.status === 'SUCCESS' || status.payment.status === 'completed') {
         setPaymentStatus('completed');
-        setShowClaimSection(true);
-      } else if (status.payment.status === 'failed') {
+        
+        // Check if tokens were already minted automatically
+        const hasMintJob = status.jobs.some(job => 
+          job.method === 'MINT' && (job.status === 'MINED' || job.status === 'PENDING')
+        );
+        
+        if (hasMintJob) {
+          // Tokens already minted automatically, no need to show claim section
+          setShowClaimSection(false);
+        } else {
+          // Show claim section for manual claiming
+          setShowClaimSection(true);
+        }
+      } else if (status.payment.status === 'FAILED' || status.payment.status === 'failed') {
         setPaymentStatus('failed');
       } else {
         setPaymentStatus('pending');
@@ -145,20 +158,66 @@ export default function PaymentSuccessPage() {
           <TransactionStatus transactionId={transactionId} autoRefresh={paymentStatus === 'pending'} />
         </div>
 
-        {/* Claim Section - Only show when payment is completed */}
-        {showClaimSection && paymentStatus === 'completed' && (
+        {/* Success Message - Show when payment is completed */}
+        {paymentStatus === 'completed' && (
           <div className="mb-6">
-            <div className="mb-4 p-4 bg-green-900/20 border border-green-700 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <h3 className="font-semibold text-green-300">Ready to Claim!</h3>
+            {transactionData && transactionData.jobs.some(job => job.method === 'MINT' && job.status === 'MINED') ? (
+              <div className="p-4 bg-green-900/20 border border-green-700 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                  <h3 className="font-semibold text-green-300">Tokens Minted Successfully! 🎉</h3>
+                </div>
+                <p className="text-green-200 text-sm mb-3">
+                  Your payment was successful and your tokens have been automatically minted to your wallet!
+                </p>
+                
+                {/* Show minting details */}
+                {transactionData.jobs
+                  .filter(job => job.method === 'MINT' && job.status === 'MINED')
+                  .map(job => (
+                    <div key={job.id} className="mt-3 p-3 bg-green-800/30 rounded text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <span className="text-green-300">Network:</span>
+                        <span className="text-green-200">{job.chainName || `Chain ${job.chainId}`}</span>
+                        <span className="text-green-300">Block:</span>
+                        <span className="text-green-200">{job.blockNumber}</span>
+                        <span className="text-green-300">Gas Used:</span>
+                        <span className="text-green-200">{job.gasUsed}</span>
+                      </div>
+                      {job.txHash && (
+                        <div className="mt-2">
+                          <span className="text-green-300">Transaction: </span>
+                          <span className="font-mono text-green-200 break-all">{job.txHash}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
-              <p className="text-green-200 text-sm">
-                Your payment has been confirmed. You can now claim your tokens to your wallet.
-              </p>
-            </div>
-            
-            <ClaimTokens transactionId={transactionId} />
+            ) : transactionData && transactionData.jobs.some(job => job.method === 'MINT' && job.status === 'PENDING') ? (
+              <div className="p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />
+                  <h3 className="font-semibold text-blue-300">Minting Tokens...</h3>
+                </div>
+                <p className="text-blue-200 text-sm">
+                  Your payment was successful! We're currently minting your tokens on the blockchain. This usually takes a few seconds.
+                </p>
+              </div>
+            ) : showClaimSection ? (
+              <div className="mb-4">
+                <div className="mb-4 p-4 bg-green-900/20 border border-green-700 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                    <h3 className="font-semibold text-green-300">Ready to Claim!</h3>
+                  </div>
+                  <p className="text-green-200 text-sm">
+                    Your payment has been confirmed. You can now claim your tokens to your wallet.
+                  </p>
+                </div>
+                
+                <ClaimTokens transactionId={transactionId} />
+              </div>
+            ) : null}
           </div>
         )}
 

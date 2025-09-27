@@ -250,9 +250,9 @@ export default function QRPaymentPage() {
                         {paymentStatus === 'pending' && <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse" />}
                     </div>
                     <div className={`text-sm font-medium mb-2 ${paymentStatus === 'pending' ? 'text-yellow-400' :
-                            paymentStatus === 'checking' ? 'text-blue-400' :
-                                paymentStatus === 'success' ? 'text-green-400' :
-                                    'text-red-400'
+                        paymentStatus === 'checking' ? 'text-blue-400' :
+                            paymentStatus === 'success' ? 'text-green-400' :
+                                'text-red-400'
                         }`}>
                         {paymentStatus === 'pending' && 'Monitoring payment automatically...'}
                         {paymentStatus === 'checking' && 'Checking payment status...'}
@@ -378,7 +378,7 @@ export default function QRPaymentPage() {
                         <li>Or click "Open UPI App" to pay directly</li>
                         <li>Complete the payment in your UPI app</li>
                         <li><strong>Sit back and relax!</strong> We're monitoring your payment automatically</li>
-                        <li>You'll be redirected to claim your tokens once payment is confirmed</li>
+                        <li>Once confirmed, your tokens will be automatically minted to your wallet!</li>
                     </ol>
 
                     <div className="mt-3 p-2 bg-blue-800/30 rounded text-xs text-blue-100">
