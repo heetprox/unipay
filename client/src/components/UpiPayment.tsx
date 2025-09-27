@@ -1,42 +1,101 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { UniPayAPI } from '@/lib/api';
-import { useAccount } from 'wagmi';
-import type { 
-  UpiInitiateResponse, 
-  CurrentPricesResponse, 
+import { useState, useEffect } from "react";
+import { UniPayAPI } from "@/lib/api";
+import { useAccount } from "wagmi";
+import type {
+  UpiInitiateResponse,
+  CurrentPricesResponse,
   LockedQuoteResponse,
   ETHQuoteResponse,
-  USDQuoteResponse 
-} from '@/types/api';
-import Link from 'next/link';
-import { RefreshCw, Clock, TrendingUp } from 'lucide-react';
+  USDQuoteResponse,
+} from "@/types/api";
+import Link from "next/link";
+import { RefreshCw, ChevronDown, X } from "lucide-react";
 
 interface UpiPaymentProps {
   disabled?: boolean;
 }
 
+// Token and Chain configurations
+const SUPPORTED_TOKENS = [
+  {
+    symbol: "ETH",
+    name: "Ethereum",
+    quoteType: "ETH/INR",
+    logoURI:
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png",
+  },
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    quoteType: "USD/INR",
+    logoURI:
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
+  },
+];
+
+const SUPPORTED_CHAINS = [
+  {
+    id: 1,
+    name: "Ethereum",
+    logoURI:
+      "https://token-icons.s3.amazonaws.com/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
+  },
+  {
+    id: 8453,
+    name: "Base",
+    logoURI:
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/base/info/logo.png",
+  },
+  {
+    id: 1301,
+    name: "Unichain Sepolia",
+    logoURI:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-bVo_h5z3sT1F_2a4g9s2u_T7a_Vw_Y5-A&s",
+  },
+];
+
 export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
   const { address } = useAccount();
-  const [inrAmount, setInrAmount] = useState('');
+  const [inrAmount, setInrAmount] = useState("");
+  const [receiveAmount, setReceiveAmount] = useState("");
+  const [selectedToken, setSelectedToken] = useState(SUPPORTED_TOKENS[0]);
+  const [selectedChain, setSelectedChain] = useState(SUPPORTED_CHAINS[0]);
   const [quoteType, setQuoteType] = useState<"ETH/INR" | "USD/INR">("ETH/INR");
-  const [chainId, setChainId] = useState(1301); // Unichain Sepolia
+  const [chainId, setChainId] = useState(1);
+  const [lastEditedField, setLastEditedField] = useState<"pay" | "receive">(
+    "pay"
+  );
+
   const [loading, setLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [paymentData, setPaymentData] = useState<UpiInitiateResponse | null>(null);
-  const [currentPrices, setCurrentPrices] = useState<CurrentPricesResponse | null>(null);
-  const [currentQuote, setCurrentQuote] = useState<ETHQuoteResponse | USDQuoteResponse | null>(null);
-  const [lockedQuote, setLockedQuote] = useState<LockedQuoteResponse | null>(null);
+  const [paymentData, setPaymentData] = useState<UpiInitiateResponse | null>(
+    null
+  );
+  const [currentPrices, setCurrentPrices] =
+    useState<CurrentPricesResponse | null>(null);
+  const [currentQuote, setCurrentQuote] = useState<
+    ETHQuoteResponse | USDQuoteResponse | null
+  >(null);
+  const [lockedQuote, setLockedQuote] = useState<LockedQuoteResponse | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [priceStream, setPriceStream] = useState<EventSource | null>(null);
 
-  // Supported chains
-  const chains = [
-    { id: 1, name: 'Ethereum Mainnet' },
-    { id: 8453, name: 'Base' },
-    { id: 1301, name: 'Unichain Sepolia' }
-  ];
+  // Modal states
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+  const [isChainModalOpen, setIsChainModalOpen] = useState(false);
+
+  // Update quoteType and chainId when selections change
+  useEffect(() => {
+    setQuoteType(selectedToken.quoteType as "ETH/INR" | "USD/INR");
+  }, [selectedToken]);
+
+  useEffect(() => {
+    setChainId(selectedChain.id);
+  }, [selectedChain]);
 
   // Fetch current prices on component mount
   useEffect(() => {
@@ -50,58 +109,66 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
     };
   }, []);
 
-  // Get live quote when INR amount changes
+  // Get live quote when amounts change
   useEffect(() => {
-    if (inrAmount && parseFloat(inrAmount) > 0 && address) {
-      const debounceTimer = setTimeout(() => {
-        fetchQuote();
-      }, 500);
-
-      return () => clearTimeout(debounceTimer);
-    } else {
-      setCurrentQuote(null);
+    if (address) {
+      if (lastEditedField === "pay" && inrAmount && parseFloat(inrAmount) > 0) {
+        const debounceTimer = setTimeout(() => {
+          fetchQuoteFromINR();
+        }, 500);
+        return () => clearTimeout(debounceTimer);
+      } else if (
+        lastEditedField === "receive" &&
+        receiveAmount &&
+        parseFloat(receiveAmount) > 0
+      ) {
+        const debounceTimer = setTimeout(() => {
+          fetchQuoteFromCrypto();
+        }, 500);
+        return () => clearTimeout(debounceTimer);
+      }
     }
-  }, [inrAmount, quoteType, address]);
+  }, [inrAmount, receiveAmount, quoteType, address, lastEditedField]);
 
   const fetchCurrentPrices = async () => {
     try {
       const prices = await UniPayAPI.getCurrentPrices();
       setCurrentPrices(prices);
     } catch (err) {
-      console.error('Failed to fetch current prices:', err);
+      console.error("Failed to fetch current prices:", err);
     }
   };
 
   const setupPriceStream = () => {
     try {
       const eventSource = UniPayAPI.createPriceStream();
-      
+
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        
+
         if (data.type === "initial") {
           setCurrentPrices({
             success: true,
             prices: data.prices,
-            timestamp: data.timestamp
+            timestamp: data.timestamp,
           });
         } else if (data.type === "update") {
-          setCurrentPrices(prev => {
+          setCurrentPrices((prev) => {
             if (!prev) return null;
             return {
               ...prev,
               prices: {
                 ...prev.prices,
-                [data.symbol]: data.price
+                [data.symbol]: data.price,
               },
-              timestamp: data.timestamp
+              timestamp: data.timestamp,
             };
           });
         }
       };
 
       eventSource.onerror = (error) => {
-        console.error('Price stream error:', error);
+        console.error("Price stream error:", error);
         eventSource.close();
         // Retry connection after 5 seconds
         setTimeout(setupPriceStream, 5000);
@@ -109,11 +176,11 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
 
       setPriceStream(eventSource);
     } catch (err) {
-      console.error('Failed to setup price stream:', err);
+      console.error("Failed to setup price stream:", err);
     }
   };
 
-  const fetchQuote = async () => {
+  const fetchQuoteFromINR = async () => {
     if (!address || !inrAmount || parseFloat(inrAmount) <= 0) return;
 
     setQuoteLoading(true);
@@ -121,27 +188,74 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
       const quote = await UniPayAPI.getQuote({
         userId: address,
         inrAmount: parseFloat(inrAmount),
-        type: quoteType
+        type: quoteType,
       });
       setCurrentQuote(quote);
+      setReceiveAmount(formatPrice(quote.quote.outputAmount));
     } catch (err) {
-      console.error('Failed to fetch quote:', err);
+      console.error("Failed to fetch quote:", err);
     } finally {
       setQuoteLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fetchQuoteFromCrypto = async () => {
+    if (!address || !receiveAmount || parseFloat(receiveAmount) <= 0) return;
+
+    setQuoteLoading(true);
+    try {
+      // Calculate approximate INR amount based on current rates
+      const exchangeRate =
+        currentPrices && selectedToken.symbol === "ETH"
+          ? currentPrices.prices["ETH/USD"].price *
+            currentPrices.prices["USD/INR"].price
+          : currentPrices?.prices["USD/INR"].price || 0;
+
+      const estimatedINR = parseFloat(receiveAmount) * exchangeRate;
+
+      const quote = await UniPayAPI.getQuote({
+        userId: address,
+        inrAmount: estimatedINR,
+        type: quoteType,
+      });
+      setCurrentQuote(quote);
+      setInrAmount(quote.quote.inrAmount.toString());
+    } catch (err) {
+      console.error("Failed to fetch quote:", err);
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  const handlePayAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
-    // Only allow numbers and decimals
-    if (inputValue === '' || /^\d*\.?\d*$/.test(inputValue)) {
+    if (inputValue === "" || /^\d*\.?\d*$/.test(inputValue)) {
       setInrAmount(inputValue);
+      setLastEditedField("pay");
+      if (!inputValue) {
+        setReceiveAmount("");
+        setCurrentQuote(null);
+      }
+    }
+  };
+
+  const handleReceiveAmountChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const inputValue = e.target.value;
+    if (inputValue === "" || /^\d*\.?\d*$/.test(inputValue)) {
+      setReceiveAmount(inputValue);
+      setLastEditedField("receive");
+      if (!inputValue) {
+        setInrAmount("");
+        setCurrentQuote(null);
+      }
     }
   };
 
   const lockQuoteAndInitiatePayment = async () => {
     if (!address || !inrAmount || parseFloat(inrAmount) <= 0) {
-      setError('Please connect wallet and enter a valid INR amount');
+      setError("Please connect wallet and enter a valid INR amount");
       return;
     }
 
@@ -153,7 +267,7 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
       const lockedQuoteResponse = await UniPayAPI.lockQuote({
         userId: address,
         inrAmount: parseFloat(inrAmount),
-        type: quoteType
+        type: quoteType,
       });
 
       setLockedQuote(lockedQuoteResponse);
@@ -163,149 +277,145 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
         amount: inrAmount,
         chainId: chainId,
         userId: address,
-        lockedQuoteId: lockedQuoteResponse.quote.id
+        lockedQuoteId: lockedQuoteResponse.quote.id,
       });
 
       setPaymentData(paymentResponse);
-      
-      // Store transaction details in localStorage
-      localStorage.setItem('upiTransactionId', paymentResponse.transactionId);
-      localStorage.setItem('lockedQuoteId', lockedQuoteResponse.quote.id);
-      localStorage.setItem('quoteType', quoteType);
-      localStorage.setItem('inrAmount', inrAmount);
-      localStorage.setItem('qrCode', paymentResponse.qrCode);
-      localStorage.setItem('intentUrl', paymentResponse.intentUrl);
-      
-      const qrPageUrl = `/payment/qr?txId=${paymentResponse.transactionId}&qr=${encodeURIComponent(paymentResponse.qrCode)}&intent=${encodeURIComponent(paymentResponse.intentUrl)}`;
-      window.location.href = qrPageUrl;
+
+      // Redirect to UPI app
+      window.location.href = paymentResponse.intentUrl;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment initiation failed');
+      setError(
+        err instanceof Error ? err.message : "Payment initiation failed"
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 6
+      maximumFractionDigits: 6,
     }).format(price);
   };
 
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleTimeString();
-  };
+  const exchangeRate =
+    currentPrices && selectedToken.symbol === "ETH"
+      ? currentPrices.prices["ETH/USD"].price *
+        currentPrices.prices["USD/INR"].price
+      : currentPrices?.prices["USD/INR"].price || 0;
+
+  const parsedPayAmount = parseFloat(inrAmount) || 0;
+  const isButtonDisabled =
+    loading || !address || parsedPayAmount <= 0 || !!error || quoteLoading;
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white/10 backdrop-blur-md rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-4 text-white">Buy Crypto with UPI</h2>
-      
-      {/* Current Prices Display */}
-      {currentPrices && (
-        <div className="mb-4 p-3 bg-white/5 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-white text-sm font-medium">Live Prices</span>
-            <TrendingUp className="w-4 h-4 text-green-400" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <span className="text-gray-300">ETH/USD:</span>
-              <span className="text-white ml-1">${formatPrice(currentPrices.prices["ETH/USD"].price)}</span>
-            </div>
-            <div>
-              <span className="text-gray-300">USD/INR:</span>
-              <span className="text-white ml-1">₹{formatPrice(currentPrices.prices["USD/INR"].price)}</span>
-            </div>
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Updated: {formatTimestamp(currentPrices.timestamp)}
-          </div>
-        </div>
-      )}
-
-      {/* Quote Type Selection */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          What do you want to buy?
-        </label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setQuoteType("ETH/INR")}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-              quoteType === "ETH/INR" 
-                ? 'bg-[#9478FC] text-white' 
-                : 'bg-white/10 text-gray-300 hover:bg-white/15'
-            }`}
-          >
-            ETH
-          </button>
-          <button
-            onClick={() => setQuoteType("USD/INR")}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-              quoteType === "USD/INR" 
-                ? 'bg-[#9478FC] text-white' 
-                : 'bg-white/10 text-gray-300 hover:bg-white/15'
-            }`}
-          >
-            USDC
-          </button>
-        </div>
-      </div>
-
-      {/* Chain Selection */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Network
-        </label>
-        <select
-          value={chainId}
-          onChange={(e) => setChainId(Number(e.target.value))}
-          className="w-full px-3 py-2 border border-gray-700 bg-black/30 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-[#9478FC]"
-        >
-          {chains.map((chain) => (
-            <option key={chain.id} value={chain.id}>
-              {chain.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* INR Amount Input */}
-      <div className="w-full bg-[#1a1a1a] rounded-xl p-4 border border-gray-800 hover:border-white/30 transition-colors mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white text-md">You Pay (INR)</span>
-          {quoteLoading && <RefreshCw className="w-4 h-4 text-white animate-spin" />}
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <span className="text-white text-2xl">₹</span>
+    <div className="w-full max-w-md mx-auto space-y-3 p-4 bg-black text-white min-h-screen">
+      {/* You Pay Section */}
+      <div className="bg-neutral-800/80 rounded-2xl p-5 border border-neutral-700/50">
+        <p className="text-gray-400 text-sm mb-3">You Pay</p>
+        <div className="flex items-center justify-between gap-3">
           <input
             type="text"
             value={inrAmount}
-            onChange={handleInputChange}
-            placeholder="10000"
+            onChange={handlePayAmountChange}
+            placeholder="0.0"
             disabled={disabled}
-            className="flex-1 bg-transparent text-white text-3xl font-medium placeholder-white/50 outline-none"
+            className="flex-1 bg-transparent text-white text-4xl font-light placeholder-gray-600 outline-none min-w-0"
           />
+          <div className="flex items-center gap-2 px-3 py-2 bg-neutral-700 rounded-full shrink-0">
+            <img
+              src="https://cdn.jsdelivr.net/gh/lipis/flag-icons/flags/1x1/in.svg"
+              alt="INR"
+              width={16}
+              height={16}
+              className="rounded-full"
+            />
+            <span className="text-white text-sm font-medium">INR</span>
+          </div>
         </div>
       </div>
 
-      {/* Quote Display */}
-      {currentQuote && (
-        <div className="mb-4 p-3 bg-green-900/20 border border-green-700 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-green-300 text-sm font-medium">You Get</span>
-            <Clock className="w-4 h-4 text-green-400" />
+      {/* You Receive Section */}
+      <div className="bg-neutral-800/80 rounded-2xl p-5 border border-neutral-700/50">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-gray-400 text-sm">You Receive (est.)</p>
+          {quoteLoading && (
+            <RefreshCw className="w-4 h-4 text-white animate-spin" />
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <input
+            type="text"
+            value={receiveAmount}
+            onChange={handleReceiveAmountChange}
+            placeholder="0.0"
+            disabled={disabled}
+            className="flex-1 bg-transparent text-white text-4xl font-light placeholder-gray-600 outline-none min-w-0"
+          />
+          <button
+            onClick={() => setIsTokenModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-neutral-700 rounded-full hover:bg-neutral-600 transition-colors shrink-0"
+          >
+            <img
+              src={selectedToken.logoURI}
+              alt={selectedToken.symbol}
+              width={16}
+              height={16}
+              className="rounded-full bg-white"
+            />
+            <span className="text-white text-sm font-medium">
+              {selectedToken.symbol}
+            </span>
+            <ChevronDown className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* Network Section */}
+      <div className="bg-neutral-800/80 rounded-2xl p-5 border border-neutral-700/50">
+        <p className="text-gray-400 text-sm mb-3">Network</p>
+        <button
+          onClick={() => setIsChainModalOpen(true)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <img
+              src={selectedChain.logoURI}
+              alt={selectedChain.name}
+              width={24}
+              height={24}
+              className="rounded-full"
+            />
+            <span className="text-white text-lg font-medium">
+              {selectedChain.name}
+            </span>
           </div>
-          <div className="text-white text-xl font-bold">
-            {formatPrice(currentQuote.quote.outputAmount)} {quoteType === "ETH/INR" ? "ETH" : "USDC"}
-          </div>
-          <div className="text-xs text-green-300 mt-1">
-            Rate: ₹{formatPrice(currentQuote.quote.usdInrRate)} per USD
-            {currentQuote.quote.type === "ETH/INR" && (
-              <span> • ETH: ${formatPrice((currentQuote.quote as any).ethPriceUsd)}</span>
-            )}
-          </div>
+          <ChevronDown className="w-5 h-5 text-gray-400" />
+        </button>
+      </div>
+
+      {/* Exchange Rate */}
+      <div className="text-center py-4">
+        <p className="text-gray-400 text-sm">
+          1 {selectedToken.symbol} ≈ ₹
+          {exchangeRate.toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </p>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="text-red-400 text-sm text-center p-2">{error}</div>
+      )}
+
+      {/* Wallet Connection Warning */}
+      {!address && (
+        <div className="text-yellow-400 text-sm text-center p-2">
+          Please connect your wallet to continue
         </div>
       )}
 
@@ -313,46 +423,130 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
       {lockedQuote && (
         <div className="mb-4 p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-blue-300 text-sm font-medium">Quote Locked</span>
+            <span className="text-blue-300 text-sm font-medium">
+              Quote Locked
+            </span>
             <span className="text-xs text-blue-300">
-              Expires in {Math.max(0, Math.floor(lockedQuote.quote.validFor / 1000))}s
+              Expires in{" "}
+              {Math.max(0, Math.floor(lockedQuote.quote.validFor / 1000))}s
             </span>
           </div>
           <div className="text-white text-sm">
-            {formatPrice(lockedQuote.quote.outputAmount)} {quoteType === "ETH/INR" ? "ETH" : "USDC"} 
+            {formatPrice(lockedQuote.quote.outputAmount)}{" "}
+            {quoteType === "ETH/INR" ? "ETH" : "USDC"}
             for ₹{formatPrice(lockedQuote.quote.inrAmount)}
           </div>
         </div>
       )}
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-100/20 border border-red-400 text-red-200 rounded">
-          {error}
-        </div>
-      )}
-
-      {!address && (
-        <div className="mb-4 p-3 bg-yellow-100/20 border border-yellow-400 text-yellow-200 rounded">
-          Please connect your wallet to continue
-        </div>
-      )}
-
+      {/* Buy Button */}
       <button
         onClick={lockQuoteAndInitiatePayment}
-        disabled={loading || !address || !inrAmount || parseFloat(inrAmount) <= 0}
-        className="w-full bg-[#9478FC] text-white py-3 px-4 rounded-md hover:bg-[#7d63d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-medium"
+        disabled={isButtonDisabled}
+        className="w-full bg-gray-600/90 text-white py-4 rounded-2xl font-medium text-lg hover:bg-gray-500/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Processing...' : `Pay ₹${inrAmount || '0'} with UPI`}
+        {loading
+          ? "Processing..."
+          : `Buy for ₹${parsedPayAmount.toLocaleString("en-IN") || "0"}`}
       </button>
 
+      {/* Payment Success Link */}
       {paymentData && (
-        <div className="mt-4 p-3 bg-green-100/20 border border-green-400 text-green-200 rounded">
-          <p className="font-medium">Payment Initiated</p>
-          <p className="text-sm">Transaction ID: {paymentData.transactionId}</p>
-          <div className="mt-2">
-            <Link href={`/payment/success?txId=${paymentData.transactionId}`} className="text-[#9478FC] hover:underline">
-              View Payment Status
-            </Link>
+        <div className="mt-4 p-3 bg-green-900/20 border border-green-700 rounded-lg text-center">
+          <p className="text-green-300 font-medium">Payment Initiated</p>
+          <p className="text-green-300 text-sm">
+            Transaction ID: {paymentData.transactionId}
+          </p>
+          <Link
+            href={`/payment/success?txId=${paymentData.transactionId}`}
+            className="text-blue-400 hover:underline text-sm"
+          >
+            View Payment Status
+          </Link>
+        </div>
+      )}
+
+      {/* Token Selection Modal */}
+      {isTokenModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 rounded-2xl w-full max-w-md border border-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <h2 className="text-lg font-semibold text-white">Select Token</h2>
+              <button
+                onClick={() => setIsTokenModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              {SUPPORTED_TOKENS.map((token) => (
+                <button
+                  key={token.symbol}
+                  onClick={() => {
+                    setSelectedToken(token);
+                    setIsTokenModalOpen(false);
+                  }}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-neutral-800 transition-colors rounded-lg"
+                >
+                  <img
+                    src={token.logoURI}
+                    alt={token.symbol}
+                    width={40}
+                    height={40}
+                    className="rounded-full"
+                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-white font-medium">
+                      {token.symbol}
+                    </span>
+                    <span className="text-gray-400 text-sm">{token.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chain Selection Modal */}
+      {isChainModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 rounded-2xl w-full max-w-md border border-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <h2 className="text-lg font-semibold text-white">
+                Select Network
+              </h2>
+              <button
+                onClick={() => setIsChainModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              {SUPPORTED_CHAINS.map((chain) => (
+                <button
+                  key={chain.id}
+                  onClick={() => {
+                    setSelectedChain(chain);
+                    setIsChainModalOpen(false);
+                  }}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-neutral-800 transition-colors rounded-lg"
+                >
+                  <img
+                    src={chain.logoURI}
+                    alt={chain.name}
+                    width={40}
+                    height={40}
+                    className="rounded-full"
+                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-white font-medium">{chain.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

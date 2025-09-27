@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "./fonts.css"
+import "./fonts.css";
 import { Web3Provider } from "@/context/Web3Provider";
-import Bar from "@/components/Bar";
+import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "UniPay",
@@ -16,11 +16,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`s-font antialiased`}
-      >
+      <body className={`s-font antialiased`}>
         <Web3Provider>
-          <Bar />
+          <Navbar />
           {children}
         </Web3Provider>
       </body>

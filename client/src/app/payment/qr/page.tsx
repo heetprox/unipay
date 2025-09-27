@@ -1,427 +1,508 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { UniPayAPI } from '@/lib/api';
-import Link from 'next/link';
-import { QrCode, Smartphone, ArrowLeft, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
-import QRCodeLib from 'qrcode';
+import { useState, useEffect } from "react";
+import { UniPayAPI } from "@/lib/api";
+import { useAccount } from "wagmi";
+import type {
+  UpiInitiateResponse,
+  CurrentPricesResponse,
+  LockedQuoteResponse,
+  ETHQuoteResponse,
+  USDQuoteResponse,
+} from "@/types/api";
+import Link from "next/link";
+import { RefreshCw, Clock, TrendingUp, ChevronDown, X } from "lucide-react";
 
-export default function QRPaymentPage() {
-    const searchParams = useSearchParams();
-    const router = useRouter();
-    const [transactionId, setTransactionId] = useState<string>('');
-    const [qrCodeData, setQrCodeData] = useState<string>('');
-    const [qrCodeImage, setQrCodeImage] = useState<string>('');
-    const [intentUrl, setIntentUrl] = useState<string>('');
-    const [amount, setAmount] = useState<string>('');
-    const [quoteType, setQuoteType] = useState<string>('');
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [paymentStatus, setPaymentStatus] = useState<'pending' | 'checking' | 'success' | 'failed'>('pending');
-    const [statusCheckInterval, setStatusCheckInterval] = useState<NodeJS.Timeout | null>(null);
-    const [monitoringTime, setMonitoringTime] = useState(0);
-    const [showManualOptions, setShowManualOptions] = useState(false);
+interface UpiPaymentProps {
+  disabled?: boolean;
+}
 
-    useEffect(() => {
-        // Get transaction details from URL params or localStorage
-        const txId = searchParams.get('txId') || localStorage.getItem('upiTransactionId');
-        const qr = searchParams.get('qr') || localStorage.getItem('qrCode');
-        const intent = searchParams.get('intent') || localStorage.getItem('intentUrl');
-        const amt = localStorage.getItem('inrAmount') || '';
-        const type = localStorage.getItem('quoteType') || '';
+// Token and Chain configurations
+const SUPPORTED_TOKENS = [
+  {
+    symbol: "ETH",
+    name: "Ethereum",
+    quoteType: "ETH/INR",
+    logoURI:
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png",
+  },
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    quoteType: "USD/INR",
+    logoURI:
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
+  },
+];
 
-        if (txId && qr && intent) {
-            setTransactionId(txId);
+const SUPPORTED_CHAINS = [
+  {
+    id: 1,
+    name: "Ethereum",
+    logoURI:
+      "https://token-icons.s3.amazonaws.com/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
+  },
+  {
+    id: 8453,
+    name: "Base",
+    logoURI:
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/base/info/logo.png",
+  },
+  {
+    id: 1301,
+    name: "Unichain Sepolia",
+    logoURI:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-bVo_h5z3sT1F_2a4g9s2u_T7a_Vw_Y5-A&s",
+  },
+];
 
-            // Decode QR code if it's base64 encoded
-            const decodedQr = qr.startsWith('data:text/plain;base64,')
-                ? atob(qr.replace('data:text/plain;base64,', ''))
-                : qr;
+export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
+  const { address } = useAccount();
+  const [inrAmount, setInrAmount] = useState("");
+  const [receiveAmount, setReceiveAmount] = useState("");
+  const [selectedToken, setSelectedToken] = useState(SUPPORTED_TOKENS[0]);
+  const [selectedChain, setSelectedChain] = useState(SUPPORTED_CHAINS[0]);
+  const [quoteType, setQuoteType] = useState<"ETH/INR" | "USD/INR">("ETH/INR");
+  const [chainId, setChainId] = useState(1);
 
-            setQrCodeData(decodedQr);
-            setIntentUrl(decodeURIComponent(intent));
-            setAmount(amt);
-            setQuoteType(type);
+  const [loading, setLoading] = useState(false);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [paymentData, setPaymentData] = useState<UpiInitiateResponse | null>(
+    null
+  );
+  const [currentPrices, setCurrentPrices] =
+    useState<CurrentPricesResponse | null>(null);
+  const [currentQuote, setCurrentQuote] = useState<
+    ETHQuoteResponse | USDQuoteResponse | null
+  >(null);
+  const [lockedQuote, setLockedQuote] = useState<LockedQuoteResponse | null>(
+    null
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [priceStream, setPriceStream] = useState<EventSource | null>(null);
 
-            // Generate QR code image
-            generateQRCode(decodedQr);
+  // Modal states
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+  const [isChainModalOpen, setIsChainModalOpen] = useState(false);
 
-            // Start checking payment status
-            startStatusCheck(txId);
-        } else {
-            setError('Payment details not found. Please initiate payment again.');
-            setLoading(false);
+  // Update quoteType and chainId when selections change
+  useEffect(() => {
+    setQuoteType(selectedToken.quoteType as "ETH/INR" | "USD/INR");
+  }, [selectedToken]);
+
+  useEffect(() => {
+    setChainId(selectedChain.id);
+  }, [selectedChain]);
+
+  // Fetch current prices on component mount
+  useEffect(() => {
+    fetchCurrentPrices();
+    setupPriceStream();
+
+    return () => {
+      if (priceStream) {
+        priceStream.close();
+      }
+    };
+  }, []);
+
+  // Get live quote when INR amount changes
+  useEffect(() => {
+    if (inrAmount && parseFloat(inrAmount) > 0 && address) {
+      const debounceTimer = setTimeout(() => {
+        fetchQuote();
+      }, 500);
+
+      return () => clearTimeout(debounceTimer);
+    } else {
+      setCurrentQuote(null);
+      setReceiveAmount("");
+    }
+  }, [inrAmount, quoteType, address]);
+
+  // Update receive amount when quote is fetched
+  useEffect(() => {
+    if (currentQuote) {
+      setReceiveAmount(formatPrice(currentQuote.quote.outputAmount));
+    }
+  }, [currentQuote]);
+
+  const fetchCurrentPrices = async () => {
+    try {
+      const prices = await UniPayAPI.getCurrentPrices();
+      setCurrentPrices(prices);
+    } catch (err) {
+      console.error("Failed to fetch current prices:", err);
+    }
+  };
+
+  const setupPriceStream = () => {
+    try {
+      const eventSource = UniPayAPI.createPriceStream();
+
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "initial") {
+          setCurrentPrices({
+            success: true,
+            prices: data.prices,
+            timestamp: data.timestamp,
+          });
+        } else if (data.type === "update") {
+          setCurrentPrices((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              prices: {
+                ...prev.prices,
+                [data.symbol]: data.price,
+              },
+              timestamp: data.timestamp,
+            };
+          });
         }
+      };
 
-        return () => {
-            if (statusCheckInterval) {
-                clearInterval(statusCheckInterval);
-            }
-        };
-    }, [searchParams]);
+      eventSource.onerror = (error) => {
+        console.error("Price stream error:", error);
+        eventSource.close();
+        // Retry connection after 5 seconds
+        setTimeout(setupPriceStream, 5000);
+      };
 
-    const generateQRCode = async (data: string) => {
-        try {
-            const qrCodeDataURL = await QRCodeLib.toDataURL(data, {
-                width: 256,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF'
-                }
-            });
-            setQrCodeImage(qrCodeDataURL);
-            setLoading(false);
-        } catch (err) {
-            console.error('Failed to generate QR code:', err);
-            setError('Failed to generate QR code');
-            setLoading(false);
-        }
-    };
+      setPriceStream(eventSource);
+    } catch (err) {
+      console.error("Failed to setup price stream:", err);
+    }
+  };
 
-    const startStatusCheck = (txId: string) => {
-        // Initial check immediately
-        checkPaymentStatus(txId);
+  const fetchQuote = async () => {
+    if (!address || !inrAmount || parseFloat(inrAmount) <= 0) return;
 
-        // Start monitoring time counter
-        const timeInterval = setInterval(() => {
-            setMonitoringTime(prev => {
-                const newTime = prev + 1;
-                // Show manual options after 2 minutes of monitoring
-                if (newTime === 120) {
-                    setShowManualOptions(true);
-                    showToast('Taking longer than expected? You can check manually or contact support.', 'info');
-                }
-                return newTime;
-            });
-        }, 1000);
+    setQuoteLoading(true);
+    try {
+      const quote = await UniPayAPI.getQuote({
+        userId: address,
+        inrAmount: parseFloat(inrAmount),
+        type: quoteType,
+      });
+      setCurrentQuote(quote);
+    } catch (err) {
+      console.error("Failed to fetch quote:", err);
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
 
-        // Then check every 2 seconds for faster response
-        const statusInterval = setInterval(() => {
-            checkPaymentStatus(txId);
-        }, 2000);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    // Only allow numbers and decimals
+    if (inputValue === "" || /^\d*\.?\d*$/.test(inputValue)) {
+      setInrAmount(inputValue);
+    }
+  };
 
-        setStatusCheckInterval(statusInterval);
-
-        // Clean up time counter when status checking stops
-        return () => {
-            clearInterval(timeInterval);
-            clearInterval(statusInterval);
-        };
-    };
-
-    const checkPaymentStatus = async (txId: string) => {
-        try {
-            setPaymentStatus('checking');
-            const status = await UniPayAPI.getTransactionStatus(txId);
-
-            console.log('Payment status check:', status.payment.status);
-
-            // Check for SUCCESS status (from backend) or completed (alternative)
-            if (status.payment.status === 'SUCCESS' || status.payment.status === 'completed') {
-                setPaymentStatus('success');
-                if (statusCheckInterval) {
-                    clearInterval(statusCheckInterval);
-                }
-
-                showToast('Payment successful! Tokens minted automatically! Redirecting...', 'success');
-
-                // Redirect to success page after showing success message
-                setTimeout(() => {
-                    router.push(`/payment/success?txId=${txId}`);
-                }, 1500);
-            } else if (status.payment.status === 'FAILED' || status.payment.status === 'failed') {
-                setPaymentStatus('failed');
-                if (statusCheckInterval) {
-                    clearInterval(statusCheckInterval);
-                }
-                showToast('Payment failed. Please try again.', 'error');
-            } else {
-                setPaymentStatus('pending');
-            }
-        } catch (err) {
-            console.error('Status check failed:', err);
-            // Don't change status on API errors, keep checking
-            setTimeout(() => setPaymentStatus('pending'), 1000);
-        }
-    };
-
-    const openUpiApp = () => {
-        if (intentUrl) {
-            window.location.href = intentUrl;
-        }
-    };
-
-    const copyUpiLink = async () => {
-        if (qrCodeData) {
-            try {
-                await navigator.clipboard.writeText(qrCodeData);
-                showToast('UPI link copied to clipboard!', 'success');
-            } catch (err) {
-                console.error('Failed to copy UPI link:', err);
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = qrCodeData;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                showToast('UPI link copied to clipboard!', 'success');
-            }
-        }
-    };
-
-    const downloadQRCode = () => {
-        if (qrCodeImage) {
-            const link = document.createElement('a');
-            link.download = `upi-qr-${transactionId}.png`;
-            link.href = qrCodeImage;
-            link.click();
-            showToast('QR code downloaded!', 'success');
-        }
-    };
-
-    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning') => {
-        const toastDiv = document.createElement('div');
-        const bgColor = type === 'success' ? 'bg-green-900/90 border-green-700' :
-            type === 'error' ? 'bg-red-900/90 border-red-700' :
-                'bg-blue-900/90 border-blue-700';
-        toastDiv.className = `fixed top-4 right-4 ${bgColor} border text-white p-3 rounded-lg z-50 backdrop-blur-md`;
-        toastDiv.textContent = message;
-        document.body.appendChild(toastDiv);
-        setTimeout(() => {
-            if (document.body.contains(toastDiv)) {
-                document.body.removeChild(toastDiv);
-            }
-        }, 3000);
-    };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-black text-white">
-                <div className="flex items-center gap-3">
-                    <RefreshCw className="w-6 h-6 animate-spin" />
-                    <span>Loading payment details...</span>
-                </div>
-            </div>
-        );
+  const lockQuoteAndInitiatePayment = async () => {
+    if (!address || !inrAmount || parseFloat(inrAmount) <= 0) {
+      setError("Please connect wallet and enter a valid INR amount");
+      return;
     }
 
-    if (error) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-black text-white">
-                <div className="max-w-md w-full bg-white/10 backdrop-blur-md p-6 rounded-lg shadow-lg text-center">
-                    <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold mb-4">Payment Error</h1>
-                    <p className="mb-6 text-gray-300">{error}</p>
-                    <Link
-                        href="/"
-                        className="block w-full bg-[#9478FC] text-white py-2 px-4 rounded-md hover:bg-[#7d63d4] transition-all duration-300"
-                    >
-                        Start New Payment
-                    </Link>
-                </div>
-            </div>
-        );
+    setLoading(true);
+    setError(null);
+
+    try {
+      // First, lock the quote
+      const lockedQuoteResponse = await UniPayAPI.lockQuote({
+        userId: address,
+        inrAmount: parseFloat(inrAmount),
+        type: quoteType,
+      });
+
+      setLockedQuote(lockedQuoteResponse);
+
+      // Then initiate UPI payment with locked quote
+      const paymentResponse = await UniPayAPI.initiateUpiPayment({
+        amount: inrAmount,
+        chainId: chainId,
+        userId: address,
+        lockedQuoteId: lockedQuoteResponse.quote.id,
+      });
+
+      setPaymentData(paymentResponse);
+
+      // Redirect to UPI app
+      window.location.href = paymentResponse.intentUrl;
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Payment initiation failed"
+      );
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return (
-        <div className="min-h-screen bg-black text-white p-4">
-            <div className="max-w-md mx-auto">
-                {/* Header */}
-                <div className="flex items-center gap-3 mb-6">
-                    <Link href="/" className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                        <ArrowLeft className="w-5 h-5" />
-                    </Link>
-                    <div>
-                        <h1 className="text-xl font-bold">Complete Payment</h1>
-                        <p className="text-sm text-gray-400">Scan QR or use UPI app</p>
-                    </div>
-                </div>
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).format(price);
+  };
 
-                {/* Payment Status */}
-                <div className="mb-6 p-4 bg-white/5 rounded-lg border border-gray-800">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-300">Payment Status</span>
-                        {paymentStatus === 'checking' && <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />}
-                        {paymentStatus === 'success' && <CheckCircle className="w-4 h-4 text-green-400" />}
-                        {paymentStatus === 'failed' && <XCircle className="w-4 h-4 text-red-400" />}
-                        {paymentStatus === 'pending' && <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse" />}
-                    </div>
-                    <div className={`text-sm font-medium mb-2 ${paymentStatus === 'pending' ? 'text-yellow-400' :
-                        paymentStatus === 'checking' ? 'text-blue-400' :
-                            paymentStatus === 'success' ? 'text-green-400' :
-                                'text-red-400'
-                        }`}>
-                        {paymentStatus === 'pending' && 'Monitoring payment automatically...'}
-                        {paymentStatus === 'checking' && 'Checking payment status...'}
-                        {paymentStatus === 'success' && 'Payment successful! Redirecting...'}
-                        {paymentStatus === 'failed' && 'Payment failed'}
-                    </div>
+  const exchangeRate =
+    currentPrices && selectedToken.symbol === "ETH"
+      ? currentPrices.prices["ETH/USD"].price *
+        currentPrices.prices["USD/INR"].price
+      : currentPrices?.prices["USD/INR"].price || 0;
 
-                    {paymentStatus === 'pending' && (
-                        <div className="text-xs text-gray-400">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1">
-                                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                                    <span>Auto-checking every 2 seconds</span>
-                                </div>
-                                <span className="text-gray-500">
-                                    {Math.floor(monitoringTime / 60)}:{(monitoringTime % 60).toString().padStart(2, '0')}
-                                </span>
-                            </div>
-                            <p className="mt-1">Complete your payment in the UPI app and we'll detect it automatically</p>
-                        </div>
-                    )}
+  const parsedPayAmount = parseFloat(inrAmount) || 0;
+  const isButtonDisabled =
+    loading || !address || parsedPayAmount <= 0 || !!error || quoteLoading;
 
-                    {paymentStatus === 'success' && (
-                        <div className="text-xs text-green-300">
-                            <p>🎉 Payment confirmed! Taking you to the next step...</p>
-                        </div>
-                    )}
-
-                    {paymentStatus === 'failed' && (
-                        <div className="text-xs text-red-300">
-                            <p>❌ Payment was not successful. You can try again or contact support.</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Payment Details */}
-                <div className="mb-6 p-4 bg-white/5 rounded-lg border border-gray-800">
-                    <h2 className="text-lg font-semibold mb-3">Payment Details</h2>
-                    <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                            <span className="text-gray-400">Amount:</span>
-                            <span className="font-medium">₹{amount}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-400">Buying:</span>
-                            <span className="font-medium">{quoteType === 'ETH/INR' ? 'ETH' : 'USDC'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-400">Transaction ID:</span>
-                            <span className="font-mono text-xs">{transactionId}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* QR Code */}
-                <div className="mb-6 p-6 bg-white rounded-lg">
-                    <div className="text-center mb-4">
-                        <QrCode className="w-6 h-6 text-gray-600 mx-auto mb-2" />
-                        <h3 className="text-lg font-semibold text-gray-800">Scan to Pay</h3>
-                        <p className="text-sm text-gray-600">Use any UPI app to scan this QR code</p>
-                    </div>
-
-                    {qrCodeImage ? (
-                        <div className="flex justify-center">
-                            <img
-                                src={qrCodeImage}
-                                alt="UPI QR Code"
-                                className="w-64 h-64 border border-gray-300 rounded-lg"
-                            />
-                        </div>
-                    ) : (
-                        <div className="w-64 h-64 border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 mx-auto">
-                            <div className="text-center text-gray-600">
-                                <QrCode className="w-12 h-12 mx-auto mb-2 animate-pulse" />
-                                <p className="text-sm">Generating QR Code...</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="space-y-3">
-                    <button
-                        onClick={openUpiApp}
-                        className="w-full bg-[#9478FC] text-white py-3 px-4 rounded-lg hover:bg-[#7d63d4] transition-all duration-300 flex items-center justify-center gap-2 font-medium"
-                    >
-                        <Smartphone className="w-5 h-5" />
-                        Open UPI App
-                    </button>
-
-                    <div className="grid grid-cols-3 gap-2">
-                        <button
-                            onClick={copyUpiLink}
-                            className="bg-white/10 text-white py-2 px-3 rounded-lg hover:bg-white/15 transition-all duration-300 text-xs"
-                        >
-                            Copy Link
-                        </button>
-
-                        <button
-                            onClick={downloadQRCode}
-                            disabled={!qrCodeImage}
-                            className="bg-white/10 text-white py-2 px-3 rounded-lg hover:bg-white/15 transition-all duration-300 text-xs disabled:opacity-50"
-                        >
-                            Download QR
-                        </button>
-
-                        <button
-                            onClick={() => checkPaymentStatus(transactionId)}
-                            disabled={paymentStatus === 'checking'}
-                            className="bg-white/10 text-white py-2 px-3 rounded-lg hover:bg-white/15 transition-all duration-300 text-xs disabled:opacity-50 flex items-center justify-center gap-1"
-                        >
-                            <RefreshCw className={`w-3 h-3 ${paymentStatus === 'checking' ? 'animate-spin' : ''}`} />
-                            Check Now
-                        </button>
-                    </div>
-                </div>
-
-                {/* Instructions */}
-                <div className="mt-6 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
-                    <h4 className="font-medium text-blue-300 mb-2">How it works:</h4>
-                    <ol className="text-sm text-blue-200 space-y-1 list-decimal list-inside">
-                        <li>Scan the QR code with any UPI app (GPay, PhonePe, Paytm, etc.)</li>
-                        <li>Or click "Open UPI App" to pay directly</li>
-                        <li>Complete the payment in your UPI app</li>
-                        <li><strong>Sit back and relax!</strong> We're monitoring your payment automatically</li>
-                        <li>Once confirmed, your tokens will be automatically minted to your wallet!</li>
-                    </ol>
-
-                    <div className="mt-3 p-2 bg-blue-800/30 rounded text-xs text-blue-100">
-                        💡 <strong>No need to refresh!</strong> This page automatically checks your payment status every 2 seconds.
-                    </div>
-                </div>
-
-                {/* Manual Options - Show after 2 minutes */}
-                {showManualOptions && (
-                    <div className="mt-6 p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg">
-                        <h4 className="font-medium text-yellow-300 mb-2">Payment taking longer than expected?</h4>
-                        <p className="text-sm text-yellow-200 mb-3">
-                            If you've completed the payment but it's not being detected automatically, you can:
-                        </p>
-                        <div className="space-y-2">
-                            <Link
-                                href={`/payment/success?txId=${transactionId}`}
-                                className="block w-full text-center bg-yellow-700 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition-all duration-300 text-sm"
-                            >
-                                Check Payment Status Manually
-                            </Link>
-                            <button
-                                onClick={() => checkPaymentStatus(transactionId)}
-                                className="w-full bg-white/10 text-white py-2 px-4 rounded-md hover:bg-white/15 transition-all duration-300 text-sm"
-                            >
-                                Force Check Now
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Footer */}
-                {!showManualOptions && (
-                    <div className="mt-6 text-center">
-                        <Link
-                            href={`/payment/success?txId=${transactionId}`}
-                            className="text-[#9478FC] hover:underline text-sm"
-                        >
-                            Check Payment Status Manually
-                        </Link>
-                    </div>
-                )}
-            </div>
+  return (
+    <div className="w-full max-w-md mx-auto space-y-4 p-6">
+      {/* You Pay Section */}
+      <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-700">
+        <p className="text-gray-400 text-sm mb-4 font-medium">You Pay</p>
+        <div className="flex items-center justify-between gap-4">
+          <input
+            type="text"
+            value={inrAmount}
+            onChange={handleInputChange}
+            placeholder="0.0"
+            disabled={disabled}
+            className="flex-1 bg-transparent text-white text-5xl font-normal placeholder-gray-600 outline-none min-w-0"
+            style={{ fontWeight: "400" }}
+          />
+          <div className="flex items-center gap-2 px-4 py-2 bg-green-600 rounded-full shrink-0">
+            <img
+              src="https://cdn.jsdelivr.net/gh/lipis/flag-icons/flags/1x1/in.svg"
+              alt="INR"
+              width={18}
+              height={18}
+              className="rounded-full"
+            />
+            <span className="text-white text-sm font-semibold">INR</span>
+          </div>
         </div>
-    );
+      </div>
+
+      {/* You Receive Section */}
+      <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-700">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-gray-400 text-sm font-medium">
+            You Receive (est.)
+          </p>
+          {quoteLoading && (
+            <RefreshCw className="w-4 h-4 text-white animate-spin" />
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <input
+            type="text"
+            value={receiveAmount}
+            readOnly
+            placeholder="0.0"
+            className="flex-1 bg-transparent text-white text-5xl font-normal placeholder-gray-600 outline-none min-w-0"
+            style={{ fontWeight: "400" }}
+          />
+          <button
+            onClick={() => setIsTokenModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 rounded-full hover:bg-purple-700 transition-colors shrink-0"
+          >
+            <img
+              src={selectedToken.logoURI}
+              alt={selectedToken.symbol}
+              width={18}
+              height={18}
+              className="rounded-full"
+            />
+            <span className="text-white text-sm font-semibold">
+              {selectedToken.symbol}
+            </span>
+            <ChevronDown className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* Network Section */}
+      <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-700">
+        <p className="text-gray-400 text-sm mb-4 font-medium">Network</p>
+        <button
+          onClick={() => setIsChainModalOpen(true)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <img
+              src={selectedChain.logoURI}
+              alt={selectedChain.name}
+              width={24}
+              height={24}
+              className="rounded-full"
+            />
+            <span className="text-white text-lg font-medium">
+              {selectedChain.name}
+            </span>
+          </div>
+          <ChevronDown className="w-5 h-5 text-gray-400" />
+        </button>
+      </div>
+
+      {/* Exchange Rate */}
+      <div className="text-center py-3">
+        <p className="text-gray-400 text-sm">
+          1 {selectedToken.symbol} ≈ ₹
+          {exchangeRate.toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </p>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="text-red-400 text-sm text-center p-2">{error}</div>
+      )}
+
+      {/* Wallet Connection Warning */}
+      {!address && (
+        <div className="text-yellow-400 text-sm text-center p-2">
+          Please connect your wallet to continue
+        </div>
+      )}
+
+      {/* Locked Quote Display */}
+      {lockedQuote && (
+        <div className="mb-4 p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-blue-300 text-sm font-medium">
+              Quote Locked
+            </span>
+            <span className="text-xs text-blue-300">
+              Expires in{" "}
+              {Math.max(0, Math.floor(lockedQuote.quote.validFor / 1000))}s
+            </span>
+          </div>
+          <div className="text-white text-sm">
+            {formatPrice(lockedQuote.quote.outputAmount)}{" "}
+            {quoteType === "ETH/INR" ? "ETH" : "USDC"}
+            for ₹{formatPrice(lockedQuote.quote.inrAmount)}
+          </div>
+        </div>
+      )}
+
+      {/* Buy Button */}
+      <button
+        onClick={lockQuoteAndInitiatePayment}
+        disabled={isButtonDisabled}
+        className="w-full bg-gray-700 text-white py-4 rounded-3xl font-medium text-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {loading
+          ? "Processing..."
+          : `Buy for ₹${parsedPayAmount.toLocaleString("en-IN") || "0"}`}
+      </button>
+
+      {/* Payment Success Link */}
+      {paymentData && (
+        <div className="mt-4 p-3 bg-green-900/20 border border-green-700 rounded-lg text-center">
+          <p className="text-green-300 font-medium">Payment Initiated</p>
+          <p className="text-green-300 text-sm">
+            Transaction ID: {paymentData.transactionId}
+          </p>
+          <Link
+            href={`/payment/success?txId=${paymentData.transactionId}`}
+            className="text-blue-400 hover:underline text-sm"
+          >
+            View Payment Status
+          </Link>
+        </div>
+      )}
+
+      {/* Token Selection Modal */}
+      {isTokenModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 rounded-2xl w-full max-w-md border border-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <h2 className="text-lg font-semibold text-white">Select Token</h2>
+              <button
+                onClick={() => setIsTokenModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              {SUPPORTED_TOKENS.map((token) => (
+                <button
+                  key={token.symbol}
+                  onClick={() => {
+                    setSelectedToken(token);
+                    setIsTokenModalOpen(false);
+                  }}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-neutral-800 transition-colors rounded-lg"
+                >
+                  <img
+                    src={token.logoURI}
+                    alt={token.symbol}
+                    width={40}
+                    height={40}
+                    className="rounded-full"
+                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-white font-medium">
+                      {token.symbol}
+                    </span>
+                    <span className="text-gray-400 text-sm">{token.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chain Selection Modal */}
+      {isChainModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 rounded-2xl w-full max-w-md border border-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <h2 className="text-lg font-semibold text-white">
+                Select Network
+              </h2>
+              <button
+                onClick={() => setIsChainModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              {SUPPORTED_CHAINS.map((chain) => (
+                <button
+                  key={chain.id}
+                  onClick={() => {
+                    setSelectedChain(chain);
+                    setIsChainModalOpen(false);
+                  }}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-neutral-800 transition-colors rounded-lg"
+                >
+                  <img
+                    src={chain.logoURI}
+                    alt={chain.name}
+                    width={40}
+                    height={40}
+                    className="rounded-full"
+                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-white font-medium">{chain.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
