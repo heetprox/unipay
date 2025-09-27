@@ -20,6 +20,7 @@ export default function QRPaymentPage() {
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'checking' | 'success' | 'failed'>('pending');
   const [statusCheckInterval, setStatusCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const [monitoringTime, setMonitoringTime] = useState(0);
 
   useEffect(() => {
     // Get transaction details from URL params or localStorage
@@ -346,13 +347,18 @@ export default function QRPaymentPage() {
 
         {/* Instructions */}
         <div className="mt-6 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
-          <h4 className="font-medium text-blue-300 mb-2">Payment Instructions:</h4>
+          <h4 className="font-medium text-blue-300 mb-2">How it works:</h4>
           <ol className="text-sm text-blue-200 space-y-1 list-decimal list-inside">
-            <li>Scan the QR code with any UPI app</li>
+            <li>Scan the QR code with any UPI app (GPay, PhonePe, Paytm, etc.)</li>
             <li>Or click "Open UPI App" to pay directly</li>
             <li>Complete the payment in your UPI app</li>
-            <li>You'll be automatically redirected once payment is confirmed</li>
+            <li><strong>Sit back and relax!</strong> We're monitoring your payment automatically</li>
+            <li>You'll be redirected to claim your tokens once payment is confirmed</li>
           </ol>
+          
+          <div className="mt-3 p-2 bg-blue-800/30 rounded text-xs text-blue-100">
+            💡 <strong>No need to refresh!</strong> This page automatically checks your payment status every 2 seconds.
+          </div>
         </div>
 
         {/* Footer */}
