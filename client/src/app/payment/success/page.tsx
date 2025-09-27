@@ -103,8 +103,8 @@ export default function PaymentSuccessPage() {
     <div className="min-h-screen bg-black text-white p-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-6xl font-bold">Payment Status</h1>
-          <p className="text-xl text-gray-300">
+          <h1 className="text-3xl font-bold">Payment Status</h1>
+          <p className="text-gray-300">
             Track your payment and claim your tokens
           </p>
         </div>

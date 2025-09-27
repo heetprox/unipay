@@ -11,7 +11,7 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="w-full max-w-6xl mx-auto">
           <Background />
-          <div className="text-center mb-12">
+          <div className="text-center mb-12 mt-20">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 b-font">
               Buy crypto @ lightning speed⚡
             </h1>
@@ -36,7 +36,7 @@ export default function Home() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap justify-center gap-4 mt-12">
+          <div className="flex flex-wrap justify-center gap-4">
             <SimpleButton title="Transaction Status" href="/payment/success" />
             <SimpleButton title="Claim Tokens" href="/claim" />
             <SimpleButton title="System Health" href="/health" />

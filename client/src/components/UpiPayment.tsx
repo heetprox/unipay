@@ -12,6 +12,7 @@ import type {
 } from "@/types/api";
 import Link from "next/link";
 import { RefreshCw, ChevronDown, X, Lock, CheckCircle } from "lucide-react";
+import type { TransactionStatusResponse } from "@/types/api";
 
 interface UpiPaymentProps {
   disabled?: boolean;
@@ -82,6 +83,12 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const [priceStream, setPriceStream] = useState<EventSource | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<
+    "loading" | "pending" | "completed" | "failed"
+  >("loading");
+  const [transactionData, setTransactionData] =
+    useState<TransactionStatusResponse | null>(null);
+  const [showClaimSection, setShowClaimSection] = useState(false);
 
   // Modal states
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
@@ -281,8 +288,20 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
 
       setPaymentData(paymentResponse);
 
-      // Redirect to UPI app
-      window.location.href = paymentResponse.intentUrl;
+      localStorage.setItem("upiTransactionId", paymentResponse.transactionId);
+      localStorage.setItem("lockedQuoteId", lockedQuoteResponse.quote.id);
+      localStorage.setItem("quoteType", quoteType);
+      localStorage.setItem("inrAmount", inrAmount);
+      localStorage.setItem("qrCode", paymentResponse.qrCode);
+      localStorage.setItem("intentUrl", paymentResponse.intentUrl);
+
+      // Redirect to QR payment page
+      const qrPageUrl = `/payment/qr?txId=${
+        paymentResponse.transactionId
+      }&qr=${encodeURIComponent(
+        paymentResponse.qrCode
+      )}&intent=${encodeURIComponent(paymentResponse.intentUrl)}`;
+      window.location.href = qrPageUrl;
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Payment initiation failed"
@@ -308,6 +327,48 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
   const parsedPayAmount = parseFloat(inrAmount) || 0;
   const isButtonDisabled =
     loading || !address || parsedPayAmount <= 0 || !!error || quoteLoading;
+
+  const checkPaymentStatus = async (txId: string) => {
+    try {
+      const status = await UniPayAPI.getTransactionStatus(txId);
+      setTransactionData(status);
+
+      // Check for SUCCESS status (from backend) or completed (alternative)
+      if (
+        status.payment.status === "SUCCESS" ||
+        status.payment.status === "completed"
+      ) {
+        setPaymentStatus("completed");
+
+        // Check if tokens were already minted automatically
+        const hasMintJob = status.jobs.some(
+          (job) =>
+            job.method === "MINT" &&
+            (job.status === "MINED" || job.status === "PENDING")
+        );
+
+        if (hasMintJob) {
+          // Tokens already minted automatically, no need to show claim section
+          setShowClaimSection(false);
+        } else {
+          // Show claim section for manual claiming
+          setShowClaimSection(true);
+        }
+      } else if (
+        status.payment.status === "FAILED" ||
+        status.payment.status === "failed"
+      ) {
+        setPaymentStatus("failed");
+      } else {
+        setPaymentStatus("pending");
+        // Continue polling if payment is still pending
+        setTimeout(() => checkPaymentStatus(txId), 5000);
+      }
+    } catch (err) {
+      console.error("Failed to check payment status:", err);
+      setPaymentStatus("failed");
+    }
+  };
 
   return (
     <div className="w-full max-w-md mx-auto space-y-3 p-4 bg-transparent text-white min-h-screen">
