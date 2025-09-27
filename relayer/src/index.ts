@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import express from "express";
 import { claimRoutes } from "./routes/claim";
 import { healthRoutes } from "./routes/health";
+import { priceRoutes } from "./routes/price";
 import { statusRoutes } from "./routes/status";
 import { upiRoutes } from "./routes/upi";
 
@@ -16,6 +17,7 @@ app.use(express.json());
 
 app.use("/upi", upiRoutes);
 app.use("/claim", claimRoutes);
+app.use("/price", priceRoutes);
 app.use("/tx", statusRoutes);
 app.use("/health", healthRoutes);
 
