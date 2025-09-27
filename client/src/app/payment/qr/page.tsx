@@ -79,32 +79,50 @@ export default function QRPaymentPage() {
   };
 
   const startStatusCheck = (txId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        setPaymentStatus('checking');
-        const status = await UniPayAPI.getTransactionStatus(txId);
-        
-        if (status.payment.status === 'completed') {
-          setPaymentStatus('success');
-          clearInterval(interval);
-          
-          // Redirect to success page after a short delay
-          setTimeout(() => {
-            router.push(`/payment/success?txId=${txId}`);
-          }, 2000);
-        } else if (status.payment.status === 'failed') {
-          setPaymentStatus('failed');
-          clearInterval(interval);
-        } else {
-          setPaymentStatus('pending');
-        }
-      } catch (err) {
-        console.error('Status check failed:', err);
-        setPaymentStatus('pending');
-      }
-    }, 3000); // Check every 3 seconds
+    // Initial check immediately
+    checkPaymentStatus(txId);
+    
+    // Then check every 2 seconds for faster response
+    const interval = setInterval(() => {
+      checkPaymentStatus(txId);
+    }, 2000);
 
     setStatusCheckInterval(interval);
+  };
+
+  const checkPaymentStatus = async (txId: string) => {
+    try {
+      setPaymentStatus('checking');
+      const status = await UniPayAPI.getTransactionStatus(txId);
+      
+      console.log('Payment status check:', status.payment.status);
+      
+      if (status.payment.status === 'completed') {
+        setPaymentStatus('success');
+        if (statusCheckInterval) {
+          clearInterval(statusCheckInterval);
+        }
+        
+        showToast('Payment successful! Redirecting...', 'success');
+        
+        // Redirect to success page after showing success message
+        setTimeout(() => {
+          router.push(`/payment/success?txId=${txId}`);
+        }, 1500);
+      } else if (status.payment.status === 'failed') {
+        setPaymentStatus('failed');
+        if (statusCheckInterval) {
+          clearInterval(statusCheckInterval);
+        }
+        showToast('Payment failed. Please try again.', 'error');
+      } else {
+        setPaymentStatus('pending');
+      }
+    } catch (err) {
+      console.error('Status check failed:', err);
+      // Don't change status on API errors, keep checking
+      setTimeout(() => setPaymentStatus('pending'), 1000);
+    }
   };
 
   const openUpiApp = () => {
