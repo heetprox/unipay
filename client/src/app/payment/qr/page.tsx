@@ -114,12 +114,30 @@ export default function QRPaymentPage() {
   };
 
   const copyUpiLink = async () => {
-    if (intentUrl) {
+    if (qrCodeData) {
       try {
-        await navigator.clipboard.writeText(intentUrl);
-        // You could add a toast notification here
+        await navigator.clipboard.writeText(qrCodeData);
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-4 right-4 bg-green-900/90 border border-green-700 text-white p-3 rounded-lg z-50';
+        successDiv.textContent = 'UPI link copied to clipboard!';
+        document.body.appendChild(successDiv);
+        setTimeout(() => document.body.removeChild(successDiv), 3000);
       } catch (err) {
         console.error('Failed to copy UPI link:', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = qrCodeData;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-4 right-4 bg-green-900/90 border border-green-700 text-white p-3 rounded-lg z-50';
+        successDiv.textContent = 'UPI link copied to clipboard!';
+        document.body.appendChild(successDiv);
+        setTimeout(() => document.body.removeChild(successDiv), 3000);
       }
     }
   };
