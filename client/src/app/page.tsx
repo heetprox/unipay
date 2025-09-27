@@ -39,7 +39,6 @@ export default function Home() {
           <div className="flex flex-wrap mt-10 justify-center gap-4">
             <SimpleButton title="Transaction Status" href="/payment/success" />
             <SimpleButton title="Claim Tokens" href="/claim" />
-            <SimpleButton title="System Health" href="/health" />
           </div>
         </div>
       </div>
