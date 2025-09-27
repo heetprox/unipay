@@ -188,11 +188,21 @@ export default function QRPaymentPage() {
           
           {qrCode && (
             <div className="flex justify-center">
-              <img 
-                src={qrCode} 
-                alt="UPI QR Code" 
-                className="w-48 h-48 border border-gray-300 rounded-lg"
-              />
+              {qrCode.startsWith('data:') ? (
+                <img 
+                  src={qrCode} 
+                  alt="UPI QR Code" 
+                  className="w-48 h-48 border border-gray-300 rounded-lg"
+                />
+              ) : (
+                <div className="w-48 h-48 border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100">
+                  <div className="text-center text-gray-600">
+                    <QrCode className="w-12 h-12 mx-auto mb-2" />
+                    <p className="text-sm">QR Code</p>
+                    <p className="text-xs mt-1 break-all px-2">{qrCode}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
