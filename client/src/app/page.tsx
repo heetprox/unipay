@@ -7,11 +7,11 @@ import Background from "@/components/animations/BackGround";
 
 export default function Home() {
   return (
-    <div className="w-full min-h-screen h-[100vh]">
-      <div className="flex flex-col items-center justify-start  bg-gradient-to-t from-purple-950 to-black h-full">
-        <div className="w-full max-w-6xl mx-auto">
-          {/* <Background /> */}
-          <div className="text-center mb-12">
+    <div className="w-full min-h-screen overflow-hidden h-[100vh]">
+      <div className="flex flex-col items-center justify-start h-full">
+        <div className="w-full max-w-6xl flex flex-col gap-10 mx-auto">
+          <Background />
+          <div className="text-center ">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 m-font">
               Buy crypto @ lightning speed⚡
             </h1>
@@ -25,9 +25,9 @@ export default function Home() {
           {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start"> */}
           <div className="gap-8 flex justify-center w-full">
             {/* Price Display */}
-            <div className="order-2 lg:order-1 w-1/2">
+            {/* <div className="order-2 lg:order-1 w-1/2">
               <PriceDisplay />
-            </div>
+            </div> */}
 
             {/* Payment Form */}
             <div className="order-1 lg:order-2 w-1/2">

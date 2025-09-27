@@ -173,12 +173,12 @@ export default function PriceDisplay() {
     return (
         <div className="w-full mx-auto p-4 bg-white/10 backdrop-blur-md rounded-lg shadow-md">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Live Prices</h3>
+                <h3 className="text-lg font-semibold text-white">Live Price Feeds</h3>
                 <div className="flex items-center gap-2">
                     <Activity className={`w-4 h-4 ${connectionStatus === 'connected' ? 'text-green-400' :
                         connectionStatus === 'connecting' ? 'text-yellow-400' : 'text-red-400'
                         }`} />
-                    <span className={`text-xs ${connectionStatus === 'connected' ? 'text-green-400' :
+                    <span className={`text-md capitalize ${connectionStatus === 'connected' ? 'text-green-400' :
                         connectionStatus === 'connecting' ? 'text-yellow-400' : 'text-red-400'
                         }`}>
                         {connectionStatus}
@@ -190,14 +190,14 @@ export default function PriceDisplay() {
                 {/* ETH/USD Price */}
                 <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                     <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">ETH/USD</span>
+                        <span className="text-white font-medium m-font">ETH/USD</span>
                         {getPriceChangeIcon("ETH/USD")}
                     </div>
-                    <div className="text-right">
+                    <div className="text-right m-font">
                         <div className={`text-lg font-bold ${getPriceChangeColor("ETH/USD")}`}>
                             ${formatPrice(prices.prices["ETH/USD"].price)}
                         </div>
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs tracking-wider text-white/60">
                             Confidence: {(prices.prices["ETH/USD"].confidence * 100).toFixed(1)}%
                         </div>
                     </div>
@@ -206,10 +206,10 @@ export default function PriceDisplay() {
                 {/* USD/INR Price */}
                 <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                     <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">USD/INR</span>
+                        <span className="text-white font-medium m-font">USD/INR</span>
                         {getPriceChangeIcon("USD/INR")}
                     </div>
-                    <div className="text-right">
+                    <div className="text-right m-font">
                         <div className={`text-lg font-bold ${getPriceChangeColor("USD/INR")}`}>
                             ₹{formatPrice(prices.prices["USD/INR"].price)}
                         </div>
@@ -220,7 +220,7 @@ export default function PriceDisplay() {
                 </div>
 
                 {/* Calculated ETH/INR Rate */}
-                <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-700/30">
+                <div className="flex items-center m-font justify-between p-3 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-700/30">
                     <span className="text-white font-medium">ETH/INR</span>
                     <div className="text-right">
                         <div className="text-lg font-bold text-purple-300">
@@ -231,7 +231,7 @@ export default function PriceDisplay() {
                 </div>
             </div>
 
-            <div className="mt-4 text-xs text-gray-400 text-center">
+            <div className="mt-4 text-xs text-gray-200 text-center">
                 Last updated: {formatTimestamp(prices.timestamp)}
             </div>
         </div>
