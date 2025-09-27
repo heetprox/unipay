@@ -5,12 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { UniPayAPI } from '@/lib/api';
 import Link from 'next/link';
 import { QrCode, Smartphone, ArrowLeft, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import QRCodeLib from 'qrcode';
 
 export default function QRPaymentPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [transactionId, setTransactionId] = useState<string>('');
-  const [qrCode, setQrCode] = useState<string>('');
+  const [qrCodeData, setQrCodeData] = useState<string>('');
+  const [qrCodeImage, setQrCodeImage] = useState<string>('');
   const [intentUrl, setIntentUrl] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [quoteType, setQuoteType] = useState<string>('');
@@ -29,11 +31,19 @@ export default function QRPaymentPage() {
 
     if (txId && qr && intent) {
       setTransactionId(txId);
-      setQrCode(qr);
-      setIntentUrl(intent);
+      
+      // Decode QR code if it's base64 encoded
+      const decodedQr = qr.startsWith('data:text/plain;base64,') 
+        ? atob(qr.replace('data:text/plain;base64,', ''))
+        : qr;
+      
+      setQrCodeData(decodedQr);
+      setIntentUrl(decodeURIComponent(intent));
       setAmount(amt);
       setQuoteType(type);
-      setLoading(false);
+      
+      // Generate QR code image
+      generateQRCode(decodedQr);
       
       // Start checking payment status
       startStatusCheck(txId);
@@ -48,6 +58,25 @@ export default function QRPaymentPage() {
       }
     };
   }, [searchParams]);
+
+  const generateQRCode = async (data: string) => {
+    try {
+      const qrCodeDataURL = await QRCodeLib.toDataURL(data, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      setQrCodeImage(qrCodeDataURL);
+      setLoading(false);
+    } catch (err) {
+      console.error('Failed to generate QR code:', err);
+      setError('Failed to generate QR code');
+      setLoading(false);
+    }
+  };
 
   const startStatusCheck = (txId: string) => {
     const interval = setInterval(async () => {
@@ -186,23 +215,20 @@ export default function QRPaymentPage() {
             <p className="text-sm text-gray-600">Use any UPI app to scan this QR code</p>
           </div>
           
-          {qrCode && (
+          {qrCodeImage ? (
             <div className="flex justify-center">
-              {qrCode.startsWith('data:') ? (
-                <img 
-                  src={qrCode} 
-                  alt="UPI QR Code" 
-                  className="w-48 h-48 border border-gray-300 rounded-lg"
-                />
-              ) : (
-                <div className="w-48 h-48 border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100">
-                  <div className="text-center text-gray-600">
-                    <QrCode className="w-12 h-12 mx-auto mb-2" />
-                    <p className="text-sm">QR Code</p>
-                    <p className="text-xs mt-1 break-all px-2">{qrCode}</p>
-                  </div>
-                </div>
-              )}
+              <img 
+                src={qrCodeImage} 
+                alt="UPI QR Code" 
+                className="w-64 h-64 border border-gray-300 rounded-lg"
+              />
+            </div>
+          ) : (
+            <div className="w-64 h-64 border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 mx-auto">
+              <div className="text-center text-gray-600">
+                <QrCode className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+                <p className="text-sm">Generating QR Code...</p>
+              </div>
             </div>
           )}
         </div>
