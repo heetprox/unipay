@@ -2,12 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { UniPayAPI } from '@/lib/api';
+import { useAccount } from 'wagmi';
 import TransactionStatus from '@/components/TransactionStatus';
+import ClaimTokens from '@/components/ClaimTokens';
 import Link from 'next/link';
+import { CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import type { TransactionStatusResponse } from '@/types/api';
 
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams();
+  const { address } = useAccount();
   const [transactionId, setTransactionId] = useState<string>('');
+  const [paymentStatus, setPaymentStatus] = useState<'loading' | 'pending' | 'completed' | 'failed'>('loading');
+  const [transactionData, setTransactionData] = useState<TransactionStatusResponse | null>(null);
+  const [showClaimSection, setShowClaimSection] = useState(false);
 
   useEffect(() => {
     // Try to get transaction ID from URL params first
@@ -15,14 +24,37 @@ export default function PaymentSuccessPage() {
     
     if (txId) {
       setTransactionId(txId);
+      checkPaymentStatus(txId);
     } else {
       // Fallback to localStorage if not in URL
       const storedTxId = localStorage.getItem('upiTransactionId');
       if (storedTxId) {
         setTransactionId(storedTxId);
+        checkPaymentStatus(storedTxId);
       }
     }
   }, [searchParams]);
+
+  const checkPaymentStatus = async (txId: string) => {
+    try {
+      const status = await UniPayAPI.getTransactionStatus(txId);
+      setTransactionData(status);
+      
+      if (status.payment.status === 'completed') {
+        setPaymentStatus('completed');
+        setShowClaimSection(true);
+      } else if (status.payment.status === 'failed') {
+        setPaymentStatus('failed');
+      } else {
+        setPaymentStatus('pending');
+        // Continue polling if payment is still pending
+        setTimeout(() => checkPaymentStatus(txId), 5000);
+      }
+    } catch (err) {
+      console.error('Failed to check payment status:', err);
+      setPaymentStatus('failed');
+    }
+  };
 
   if (!transactionId) {
     return (
@@ -42,29 +74,111 @@ export default function PaymentSuccessPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-black text-white">
-      <div className="max-w-2xl w-full">
+    <div className="min-h-screen bg-black text-white p-4">
+      <div className="max-w-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Payment Status</h1>
-          <p className="text-gray-300">Check the status of your transaction</p>
+          <p className="text-gray-300">Track your payment and claim your tokens</p>
         </div>
-        
-        <TransactionStatus transactionId={transactionId} autoRefresh={true} />
-        
-        <div className="mt-6 flex justify-between">
+
+        {/* Payment Status Card */}
+        <div className="mb-6 p-6 bg-white/10 backdrop-blur-md rounded-lg border border-gray-800">
+          <div className="flex items-center gap-3 mb-4">
+            {paymentStatus === 'loading' && <Clock className="w-6 h-6 text-blue-400 animate-pulse" />}
+            {paymentStatus === 'pending' && <Clock className="w-6 h-6 text-yellow-400" />}
+            {paymentStatus === 'completed' && <CheckCircle className="w-6 h-6 text-green-400" />}
+            {paymentStatus === 'failed' && <AlertTriangle className="w-6 h-6 text-red-400" />}
+            
+            <div>
+              <h2 className="text-xl font-semibold">
+                {paymentStatus === 'loading' && 'Checking Payment...'}
+                {paymentStatus === 'pending' && 'Payment Pending'}
+                {paymentStatus === 'completed' && 'Payment Successful!'}
+                {paymentStatus === 'failed' && 'Payment Failed'}
+              </h2>
+              <p className="text-sm text-gray-400">Transaction ID: {transactionId}</p>
+            </div>
+          </div>
+
+          {transactionData && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Amount:</span>
+                <span>₹{transactionData.payment.amount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Status:</span>
+                <span className={`capitalize ${
+                  transactionData.payment.status === 'completed' ? 'text-green-400' :
+                  transactionData.payment.status === 'failed' ? 'text-red-400' :
+                  'text-yellow-400'
+                }`}>
+                  {transactionData.payment.status}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Created:</span>
+                <span>{new Date(transactionData.payment.createdAt).toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
+          {paymentStatus === 'pending' && (
+            <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-700 rounded">
+              <p className="text-yellow-200 text-sm">
+                Your payment is being processed. This page will update automatically once the payment is confirmed.
+              </p>
+            </div>
+          )}
+
+          {paymentStatus === 'failed' && (
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded">
+              <p className="text-red-200 text-sm">
+                Your payment failed or was cancelled. Please try again or contact support if you believe this is an error.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Transaction Status Details */}
+        <div className="mb-6">
+          <TransactionStatus transactionId={transactionId} autoRefresh={paymentStatus === 'pending'} />
+        </div>
+
+        {/* Claim Section - Only show when payment is completed */}
+        {showClaimSection && paymentStatus === 'completed' && (
+          <div className="mb-6">
+            <div className="mb-4 p-4 bg-green-900/20 border border-green-700 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <h3 className="font-semibold text-green-300">Ready to Claim!</h3>
+              </div>
+              <p className="text-green-200 text-sm">
+                Your payment has been confirmed. You can now claim your tokens to your wallet.
+              </p>
+            </div>
+            
+            <ClaimTokens transactionId={transactionId} />
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-4">
           <Link 
             href="/"
-            className="bg-gray-700 text-white py-2 px-4 rounded-md hover:bg-gray-600 transition-all duration-300"
+            className="flex-1 text-center bg-gray-700 text-white py-3 px-4 rounded-md hover:bg-gray-600 transition-all duration-300"
           >
-            Back to Home
+            New Payment
           </Link>
           
-          <Link 
-            href="/claim"
-            className="bg-[#9478FC] text-white py-2 px-4 rounded-md hover:bg-[#7d63d4] transition-all duration-300"
-          >
-            Claim Tokens
-          </Link>
+          {!showClaimSection && (
+            <Link 
+              href={`/claim?txId=${transactionId}`}
+              className="flex-1 text-center bg-[#9478FC] text-white py-3 px-4 rounded-md hover:bg-[#7d63d4] transition-all duration-300"
+            >
+              Manual Claim
+            </Link>
+          )}
         </div>
       </div>
     </div>
