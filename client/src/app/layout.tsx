@@ -21,7 +21,7 @@ export default function RootLayout({
       >
         <Web3Provider>
           <Bar />
-        {children}
+          {children}
         </Web3Provider>
       </body>
     </html>
