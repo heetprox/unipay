@@ -11,7 +11,7 @@ import type {
   USDQuoteResponse,
 } from "@/types/api";
 import Link from "next/link";
-import { RefreshCw, ChevronDown, X } from "lucide-react";
+import { RefreshCw, ChevronDown, X, Lock, CheckCircle } from "lucide-react";
 
 interface UpiPaymentProps {
   disabled?: boolean;
@@ -40,7 +40,7 @@ const SUPPORTED_CHAINS = [
     id: 1,
     name: "Ethereum",
     logoURI:
-      "https://token-icons.s3.amazonaws.com/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
+      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png",
   },
   {
     id: 8453,
@@ -51,8 +51,7 @@ const SUPPORTED_CHAINS = [
   {
     id: 1301,
     name: "Unichain Sepolia",
-    logoURI:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-bVo_h5z3sT1F_2a4g9s2u_T7a_Vw_Y5-A&s",
+    logoURI: "https://img.cryptorank.io/coins/unichain1728632895218.png",
   },
 ];
 
@@ -311,7 +310,7 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
     loading || !address || parsedPayAmount <= 0 || !!error || quoteLoading;
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-3 p-4 bg-black text-white min-h-screen">
+    <div className="w-full max-w-md mx-auto space-y-3 p-4 bg-transparent text-white min-h-screen">
       {/* You Pay Section */}
       <div className="bg-neutral-800/80 rounded-2xl p-5 border border-neutral-700/50">
         <p className="text-gray-400 text-sm mb-3">You Pay</p>
@@ -414,27 +413,19 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
 
       {/* Wallet Connection Warning */}
       {!address && (
-        <div className="text-yellow-400 text-sm text-center p-2">
+        <div className="text-white bg-red-500 rounded-4xl text-lg text-center p-2">
           Please connect your wallet to continue
         </div>
       )}
 
       {/* Locked Quote Display */}
       {lockedQuote && (
-        <div className="mb-4 p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-blue-300 text-sm font-medium">
-              Quote Locked
+        <div className="bg-neutral-900 rounded-xl p-3 border border-neutral-700 text-center">
+          <div className="flex items-center justify-center gap-2 text-blue-400">
+            <Lock className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              Quote Locked for {Math.floor(lockedQuote.quote.validFor / 1000)}s
             </span>
-            <span className="text-xs text-blue-300">
-              Expires in{" "}
-              {Math.max(0, Math.floor(lockedQuote.quote.validFor / 1000))}s
-            </span>
-          </div>
-          <div className="text-white text-sm">
-            {formatPrice(lockedQuote.quote.outputAmount)}{" "}
-            {quoteType === "ETH/INR" ? "ETH" : "USDC"}
-            for ₹{formatPrice(lockedQuote.quote.inrAmount)}
           </div>
         </div>
       )}
@@ -452,14 +443,22 @@ export default function UpiPayment({ disabled = false }: UpiPaymentProps) {
 
       {/* Payment Success Link */}
       {paymentData && (
-        <div className="mt-4 p-3 bg-green-900/20 border border-green-700 rounded-lg text-center">
-          <p className="text-green-300 font-medium">Payment Initiated</p>
-          <p className="text-green-300 text-sm">
+        <div className="bg-neutral-900 rounded-xl p-4 border border-neutral-700 text-center space-y-2">
+          {/* Success Message */}
+          <div className="flex items-center justify-center gap-2 text-green-400">
+            <CheckCircle className="w-5 h-5" />
+            <p className="font-medium">Payment Initiated</p>
+          </div>
+
+          {/* Transaction Details */}
+          <p className="text-gray-400 text-lg truncate">
             Transaction ID: {paymentData.transactionId}
           </p>
+
+          {/* Action Link */}
           <Link
             href={`/payment/success?txId=${paymentData.transactionId}`}
-            className="text-blue-400 hover:underline text-sm"
+            className="text-blue-400 hover:underline text-sm font-medium"
           >
             View Payment Status
           </Link>

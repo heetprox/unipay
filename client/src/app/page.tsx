@@ -3,12 +3,14 @@
 import UpiPayment from "@/components/UpiPayment";
 import PriceDisplay from "@/components/PriceDisplay";
 import SimpleButton from "@/components/SimpleButton";
+import Background from "@/components/animations/BackGround";
 
 export default function Home() {
   return (
-    <div className="w-full min-h-screen bg-black">
+    <div className="w-full min-h-screen">
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="w-full max-w-6xl mx-auto">
+          <Background />
           <div className="text-center mb-12">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 b-font">
               Buy crypto @ lightning speed⚡
@@ -17,9 +19,6 @@ export default function Home() {
               Select the amount to buy &rarr; Scan the QR &rarr; Crypto in your
               pocket
             </p>
-            {/* <p className="text-gray-400">
-            Seamlessly convert INR to ETH or USDC using India&apos;s UPI payment system
-          </p> */}
           </div>
 
           {/* Main Content Grid */}
@@ -38,11 +37,7 @@ export default function Home() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap justify-center gap-4 mt-12">
-            <SimpleButton title="Open Dashboard" href="/dashboard" />
-            <SimpleButton
-              title="Check Transaction Status"
-              href="/payment/success"
-            />
+            <SimpleButton title="Transaction Status" href="/payment/success" />
             <SimpleButton title="Claim Tokens" href="/claim" />
             <SimpleButton title="System Health" href="/health" />
           </div>

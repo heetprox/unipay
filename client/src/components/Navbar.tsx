@@ -107,7 +107,7 @@ export default function Navbar() {
         <div className="px-4 py-3 md:px-6 lg:px-8">
           <motion.nav
             variants={navVariants}
-            className="bg-[#1a1a1a]/90 backdrop-blur-md rounded-lg border border-gray-800/50 shadow-lg"
+            className="backdrop-blur-md rounded-lg bg-neutral-400/10 shadow-lg"
             initial="visible"
             animate={hidden ? "hidden" : "visible"}
           >

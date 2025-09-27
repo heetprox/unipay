@@ -24,3 +24,105 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.aurora-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 150vw;
+  height: 150vh;
+  filter: blur(100px) brightness(0.8);
+  opacity: 0.6;
+}
+
+.aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+}
+
+/* Orb 1: A cool purple */
+.aurora-orb:nth-child(1) {
+  width: 500px;
+  height: 500px;
+  background-color: #5a00ff;
+  animation: move1 25s infinite alternate;
+}
+
+/* Orb 2: A deep blue */
+.aurora-orb:nth-child(2) {
+  width: 450px;
+  height: 450px;
+  background-color: #0044ff;
+  animation: move2 30s infinite alternate;
+}
+
+/* Orb 3: A vibrant teal */
+.aurora-orb:nth-child(3) {
+  width: 400px;
+  height: 400px;
+  background-color: #00e0ff;
+  animation: move3 28s infinite alternate;
+}
+
+/* Orb 4: A subtle magenta */
+.aurora-orb:nth-child(4) {
+  width: 350px;
+  height: 350px;
+  background-color: #b700ff;
+  animation: move4 22s infinite alternate;
+}
+
+/* Orb 5: Bottom Right Accent (NEW) */
+.aurora-orb:nth-child(5) {
+  width: 300px;
+  height: 300px;
+  background-color: #ff00aa;
+  animation: move5 26s infinite alternate;
+}
+
+@keyframes move1 {
+  0% {
+    transform: translate(10vw, -15vh) rotate(0deg) scale(1.2);
+  }
+  100% {
+    transform: translate(-20vw, 25vh) rotate(360deg) scale(1);
+  }
+}
+
+@keyframes move2 {
+  0% {
+    transform: translate(-25vw, 20vh) rotate(0deg) scale(0.8);
+  }
+  100% {
+    transform: translate(30vw, -10vh) rotate(-360deg) scale(1.1);
+  }
+}
+
+@keyframes move3 {
+  0% {
+    transform: translate(30vw, 30vh) rotate(0deg) scale(1);
+  }
+  100% {
+    transform: translate(-10vw, -20vh) rotate(360deg) scale(0.9);
+  }
+}
+
+@keyframes move4 {
+  0% {
+    transform: translate(-15vw, -25vh) rotate(0deg) scale(1.1);
+  }
+  100% {
+    transform: translate(20vw, 15vh) rotate(-360deg) scale(0.8);
+  }
+}
+
+/* NEW ANIMATION */
+@keyframes move5 {
+  0% {
+    transform: translate(40vw, 30vh) rotate(0deg) scale(0.9);
+  }
+  100% {
+    transform: translate(50vw, 40vh) rotate(180deg) scale(1);
+  }
+}
