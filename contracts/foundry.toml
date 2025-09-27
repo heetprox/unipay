@@ -1,0 +1,19 @@
+[profile.default]
+bytecode_hash = "none"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+out = "out"
+solc_version = "0.8.30"
+src = "src"
+via_ir = true
+
+[fmt]
+bracket_spacing = true
+
+[profile.lint]
+exclude_lints = ["screaming-snake-case-immutable"]
+
+[rpc_endpoints]
+base = "https://mainnet.base.org"
+local = "http://localhost:8545"
