@@ -13,7 +13,7 @@ const SimpleButton = ({ title, href }: { title: string, href: string }) => {
         
         >
             <div
-            className={`sus text-sm flex z-10 transition-all duration-500 
+            className={`sus text-sm flex z-10 transition-all duration-300 
                 
                 `}
             style={{
@@ -21,7 +21,7 @@ const SimpleButton = ({ title, href }: { title: string, href: string }) => {
             }}>
                 {title}
             </div>
-            <div className={`w-2 h-2 absolute right-0 -top-5  bg-[#9478FC] hite rounded-full ${isHovered ? "scale-[30]" : "scale-100 -z-40"} transition-all duration-700 ease-in-out`}>
+            <div className={`w-2 h-2 absolute right-0 -top-5  bg-[#9478FC] hite rounded-full ${isHovered ? "scale-[30]" : "scale-100 -z-40"} transition-all duration-300 ease-in-out`}>
 
             </div>
         </Link>
