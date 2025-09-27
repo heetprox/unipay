@@ -13,7 +13,7 @@ export default function ClaimPage() {
       <div className="max-w-md w-full">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Claim Tokens</h1>
-          <p className="text-gray-300">Convert between ETH and USDC</p>
+          <p className="text-gray-300">Claim your crypto after successful UPI payment</p>
         </div>
         
         <ClaimTokens transactionId={transactionId} />
