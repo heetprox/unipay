@@ -7,21 +7,22 @@ const router: Router = Router();
 const quoteRequestSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   inrAmount: z.number().positive("INR amount must be positive"),
-  type: z.enum(['ETH/INR', 'USD/INR']).optional().default('ETH/INR'),
+  type: z.enum(["ETH/INR", "USD/INR"]).optional().default("ETH/INR"),
 });
 
 // Get current prices for ETH/USD and USD/INR
 router.get("/current", async (req: Request, res: Response) => {
   try {
-    const prices = priceService.getCurrentPrices();
-    
+    let prices = priceService.getCurrentPrices();
+
     if (prices.size === 0) {
       // If no cached prices, fetch latest
       await priceService.fetchLatestPrices();
+      prices = priceService.getCurrentPrices(); // Get updated prices
     }
 
     const pricesObject = Object.fromEntries(prices);
-    
+
     res.json({
       success: true,
       prices: pricesObject,
@@ -42,7 +43,7 @@ router.post("/quote", async (req: Request, res: Response) => {
     const validatedData = quoteRequestSchema.parse(req.body);
     const { inrAmount, type } = validatedData;
 
-    if (type === 'ETH/INR') {
+    if (type === "ETH/INR") {
       const calculation = priceService.calculateETHAmount(inrAmount);
       if (!calculation) {
         return res.status(400).json({
@@ -62,7 +63,8 @@ router.post("/quote", async (req: Request, res: Response) => {
           timestamp: Date.now(),
         },
       });
-    } else { // USD/INR
+    } else {
+      // USD/INR
       const calculation = priceService.calculateUSDAmount(inrAmount);
       if (!calculation) {
         return res.status(400).json({
@@ -99,16 +101,18 @@ router.post("/quote", async (req: Request, res: Response) => {
 
 // Lock a quote for 5 seconds for a specific user
 router.post("/quote/lock", async (req: Request, res: Response) => {
+  // Store in DB
   try {
     const validatedData = quoteRequestSchema.parse(req.body);
     const { userId, inrAmount, type } = validatedData;
 
     const lockedQuote = priceService.lockQuote(userId, inrAmount, type);
     if (!lockedQuote) {
-      const message = type === 'ETH/INR' 
-        ? "Cannot lock quote - ETH/USD or USD/INR price feeds are not currently available"
-        : "Cannot lock quote - USD/INR price feed is not currently available";
-      
+      const message =
+        type === "ETH/INR"
+          ? "Cannot lock quote - ETH/USD or USD/INR price feeds are not currently available"
+          : "Cannot lock quote - USD/INR price feed is not currently available";
+
       return res.status(400).json({
         error: "Price data not available",
         message,
@@ -128,7 +132,7 @@ router.post("/quote/lock", async (req: Request, res: Response) => {
     };
 
     // Add ETH price only for ETH/INR quotes
-    if (lockedQuote.type === 'ETH/INR' && lockedQuote.ethPrice) {
+    if (lockedQuote.type === "ETH/INR" && lockedQuote.ethPrice) {
       response.ethPriceUsd = lockedQuote.ethPrice;
     }
 
@@ -189,7 +193,7 @@ router.get("/quote/:quoteId", async (req: Request, res: Response) => {
     };
 
     // Add ETH price only for ETH/INR quotes
-    if (lockedQuote.type === 'ETH/INR' && lockedQuote.ethPrice) {
+    if (lockedQuote.type === "ETH/INR" && lockedQuote.ethPrice) {
       response.ethPriceUsd = lockedQuote.ethPrice;
     }
 
@@ -211,7 +215,7 @@ router.get("/stream", (req: Request, res: Response) => {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
+    Connection: "keep-alive",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Cache-Control",
   });
@@ -219,21 +223,25 @@ router.get("/stream", (req: Request, res: Response) => {
   // Send initial prices
   const currentPrices = priceService.getCurrentPrices();
   if (currentPrices.size > 0) {
-    res.write(`data: ${JSON.stringify({
-      type: "initial",
-      prices: Object.fromEntries(currentPrices),
-      timestamp: Date.now(),
-    })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({
+        type: "initial",
+        prices: Object.fromEntries(currentPrices),
+        timestamp: Date.now(),
+      })}\n\n`
+    );
   }
 
   // Listen for price updates
   const onPriceUpdate = (symbol: string, priceFeed: any) => {
-    res.write(`data: ${JSON.stringify({
-      type: "update",
-      symbol,
-      price: priceFeed,
-      timestamp: Date.now(),
-    })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({
+        type: "update",
+        symbol,
+        price: priceFeed,
+        timestamp: Date.now(),
+      })}\n\n`
+    );
   };
 
   priceService.on("priceUpdate", onPriceUpdate);
@@ -245,7 +253,9 @@ router.get("/stream", (req: Request, res: Response) => {
 
   // Keep connection alive
   const keepAlive = setInterval(() => {
-    res.write(`data: ${JSON.stringify({ type: "ping", timestamp: Date.now() })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ type: "ping", timestamp: Date.now() })}\n\n`
+    );
   }, 30000);
 
   req.on("close", () => {

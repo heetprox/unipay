@@ -3,8 +3,10 @@ import { type Request, type Response, Router } from "express";
 import { stringToHex } from "viem";
 import prisma from "../config/database";
 import {
+  RELAYER_ABI,
   account,
   getChain,
+  getChainConfig,
   getPublicClient,
   getRelayerContract,
   getWalletClient,
@@ -17,9 +19,9 @@ const router: Router = Router();
 router.post("/initiate", async (req: Request, res: Response) => {
   try {
     const validatedData = upiInitiateSchema.parse(req.body);
-    const { amount, chainId } = validatedData;
+    const { amount, chainId } = validatedData; //userId and lockedQuote ID
 
-    const transactionId = randomBytes(32).toString("hex");
+    const transactionId = randomBytes(8).toString("hex");
 
     const payment = await prisma.payment.create({
       data: {
@@ -51,6 +53,7 @@ router.post("/initiate", async (req: Request, res: Response) => {
 });
 
 router.post("/callback", async (req: Request, res: Response) => {
+  // Also store UserID with transaction details
   try {
     const validatedData = upiCallbackSchema.parse(req.body);
     const { transactionId, status } = validatedData;
@@ -72,17 +75,28 @@ router.post("/callback", async (req: Request, res: Response) => {
       try {
         // Use the chainId from the payment record
         if (!existingPayment.chainId) {
-          return res.status(400).json({ error: "Chain ID not found for payment" });
+          return res
+            .status(400)
+            .json({ error: "Chain ID not found for payment" });
         }
-        const relayerContract = getRelayerContract(existingPayment.chainId as SupportedChainId);
-        const walletClient = getWalletClient(existingPayment.chainId as SupportedChainId);
+        const relayerContract = getRelayerContract(
+          existingPayment.chainId as SupportedChainId
+        );
+        const walletClient = getWalletClient(
+          existingPayment.chainId as SupportedChainId
+        );
         const txHash = stringToHex(transactionId, { size: 32 });
 
-        const chain = getChain(existingPayment.chainId as SupportedChainId);
-        const hash = await relayerContract.write.mintTicket([txHash], {
-          account: account.address,
-          chain,
-        });
+        console.log(walletClient.account?.address);
+
+        // Use writeContract with full ABI instead of contract.write to avoid RPC issues
+        const hash = await walletClient.writeContract({
+          address: getChainConfig(existingPayment.chainId as SupportedChainId)
+            .relayerContract,
+          abi: RELAYER_ABI,
+          functionName: "mintTicket",
+          args: [txHash],
+        } as any);
 
         await prisma.job.create({
           data: {
@@ -94,7 +108,9 @@ router.post("/callback", async (req: Request, res: Response) => {
           },
         });
 
-        const publicClient = getPublicClient(existingPayment.chainId as SupportedChainId);
+        const publicClient = getPublicClient(
+          existingPayment.chainId as SupportedChainId
+        );
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
         await prisma.job.updateMany({

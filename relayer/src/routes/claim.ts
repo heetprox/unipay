@@ -13,7 +13,7 @@ import { claimEthSchema, claimUsdcSchema } from "../schemas/validation";
 import type { SupportedChainId } from "../types/chains";
 
 const router: Router = Router();
-
+// Only /claim with transactionId, fetch from DB with locked quote
 router.post("/usdc", async (req: Request, res: Response) => {
   try {
     const validatedData = claimUsdcSchema.parse(req.body);
@@ -63,6 +63,7 @@ router.post("/usdc", async (req: Request, res: Response) => {
       const txHash = stringToHex(transactionId, { size: 32 });
 
       const chain = getChain(chainId as SupportedChainId);
+      // If buying USDC then swapETHToUSDC based on quote, if buying ETH then swap USDC to ETH based on quote
       const hash = await relayerContract.write.swapETHToUSDC(
         [
           txHash,

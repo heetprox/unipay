@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "ts-node src/index.ts",
-    "dev": "ts-node --watch src/index.ts",
+    "dev": "rm -rf dist && tsc && ts-node -r dotenv/config src/index.ts",
     "build": "tsc",
     "prebuild": "pnpm check",
     "lint": "biome lint src/",
