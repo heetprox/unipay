@@ -5,7 +5,7 @@ import { Web3Provider } from "@/context/Web3Provider";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "UniPay",
+  title: "UniPay.Exchange",
   description: "Get your token from UPI",
 };
 

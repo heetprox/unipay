@@ -8,10 +8,10 @@ import Background from "@/components/animations/BackGround";
 export default function Home() {
   return (
     <div className="w-full min-h-screen overflow-hidden h-[100vh]">
-      <div className="flex flex-col items-center justify-start h-full">
+      <div className="flex flex-col items-center justify-center h-full">
         <div className="w-full max-w-6xl flex flex-col gap-10 mx-auto">
           <Background />
-          <div className="text-center ">
+          {/* <div className="text-center ">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 m-font">
               Buy crypto @ lightning speed⚡
             </h1>
@@ -19,7 +19,7 @@ export default function Home() {
               Select the amount to buy &rarr; Scan the QR &rarr; Crypto in your
               pocket
             </p>
-          </div>
+          </div> */}
 
           {/* Main Content Grid */}
           {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start"> */}

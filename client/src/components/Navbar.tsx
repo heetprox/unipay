@@ -65,7 +65,7 @@ const navbarItems = [
 const Logo = () => {
   return (
     <div className="flex items-center">
-      <span className="m-font text-2xl md:text-3xl text-white">UniPay</span>
+      <span className="m-font text-2xl md:text-3xl text-white">unipay{"."}exchange</span>
     </div>
   );
 };
@@ -105,7 +105,7 @@ export default function Navbar() {
         <div className="px-4 py-3 md:px-6 lg:px-8">
           <motion.nav
             variants={navVariants}
-            className="backdrop-blur-md rounded-lg bg-neutral-400/10 shadow-lg"
+            className="backdrop-blur-md rounded-lg  shadow-lg"
             initial="visible"
             animate={hidden ? "hidden" : "visible"}
           >
@@ -119,7 +119,7 @@ export default function Navbar() {
               </div>
 
               {/* Navigation Links */}
-              <div className="flex items-center gap-8">
+              {/* <div className="flex items-center gap-8">
                 {navbarItems.map((item) => (
                   <Link
                     key={item.id}
@@ -129,7 +129,7 @@ export default function Navbar() {
                     <TextHover title1={item.title} title2={item.title} />
                   </Link>
                 ))}
-              </div>
+              </div> */}
 
               {/* Connect Wallet Button */}
               <div className="flex-shrink-0">
@@ -228,8 +228,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Spacer to prevent content from hiding behind fixed navbar */}
-      <div className="h-20 md:h-24"></div>
     </>
   );
 }

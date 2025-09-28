@@ -115,90 +115,14 @@ function PaymentSuccessContent() {
   return (
     <div className="min-h-screen bg-black text-white p-4">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6">
+        <div className="mt-14">
           <h1 className="text-3xl font-bold">Payment Status</h1>
           <p className="text-gray-300">
             Track your payment and claim your tokens
           </p>
         </div>
 
-        {/* Payment Status Card */}
-        <div className="mb-6 p-6 bg-white/10 backdrop-blur-md rounded-lg border border-gray-800">
-          <div className="flex items-center gap-3 mb-4">
-            {paymentStatus === "loading" && (
-              <Clock className="w-6 h-6 text-blue-400 animate-pulse" />
-            )}
-            {paymentStatus === "pending" && (
-              <Clock className="w-6 h-6 text-yellow-400" />
-            )}
-            {paymentStatus === "completed" && (
-              <CheckCircle className="w-6 h-6 text-green-400" />
-            )}
-            {paymentStatus === "failed" && (
-              <AlertTriangle className="w-6 h-6 text-red-400" />
-            )}
-
-            <div>
-              <h2 className="text-xl font-semibold">
-                {paymentStatus === "loading" && "Checking Payment..."}
-                {paymentStatus === "pending" && "Payment Pending"}
-                {paymentStatus === "completed" && "Payment Successful!"}
-                {paymentStatus === "failed" && "Payment Failed"}
-              </h2>
-              <p className="text-sm text-gray-400">
-                Transaction ID: {transactionId}
-              </p>
-            </div>
-          </div>
-
-          {transactionData && (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Amount:</span>
-                <span>₹{transactionData.payment.amount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Status:</span>
-                <span
-                  className={`capitalize ${
-                    transactionData.payment.status === "completed"
-                      ? "text-green-400"
-                      : transactionData.payment.status === "failed"
-                      ? "text-red-400"
-                      : "text-yellow-400"
-                  }`}
-                >
-                  {transactionData.payment.status}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Created:</span>
-                <span>
-                  {new Date(transactionData.payment.createdAt).toLocaleString()}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {paymentStatus === "pending" && (
-            <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-700 rounded">
-              <p className="text-yellow-200 text-sm">
-                Your payment is being processed. This page will update
-                automatically once the payment is confirmed.
-              </p>
-            </div>
-          )}
-
-          {paymentStatus === "failed" && (
-            <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded">
-              <p className="text-red-200 text-sm">
-                Your payment failed or was cancelled. Please try again or
-                contact support if you believe this is an error.
-              </p>
-            </div>
-          )}
-        </div>
-
+     
         {/* Transaction Status Details */}
         <div className="mb-6">
           <TransactionStatus

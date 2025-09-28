@@ -119,7 +119,25 @@ export default function TransactionStatus({
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white/10 backdrop-blur-md rounded-lg shadow-md text-white">
+    <div className="max-w-2xl mx-auto  bg-white/10 backdrop-blur-md rounded-lg shadow-md text-white">
+      
+      {transaction.payment.status === 'SUCCESS' && (
+        <div className="my-6 p-4 bg-green-900/20 border border-green-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+            <span className="font-medium text-green-300">Payment Successful!</span>
+          </div>
+          <p className="text-sm text-gray-300 mb-3">
+            Your UPI payment has been processed. You can now claim your tokens.
+          </p>
+          <button
+            onClick={() => window.location.href = `/claim?txId=${transaction.transactionId}`}
+            className="bg-[#9478FC] text-white py-2 px-4 rounded-md hover:bg-[#7d63d4] transition-colors"
+          >
+            Claim Tokens
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Transaction Status</h2>
         <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -242,23 +260,7 @@ export default function TransactionStatus({
       )}
 
       {/* Action Buttons */}
-      {transaction.payment.status === 'SUCCESS' && (
-        <div className="mt-6 p-4 bg-green-900/20 border border-green-700 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <span className="font-medium text-green-300">Payment Successful!</span>
-          </div>
-          <p className="text-sm text-gray-300 mb-3">
-            Your UPI payment has been processed. You can now claim your tokens.
-          </p>
-          <button
-            onClick={() => window.location.href = `/claim?txId=${transaction.transactionId}`}
-            className="bg-[#9478FC] text-white py-2 px-4 rounded-md hover:bg-[#7d63d4] transition-colors"
-          >
-            Claim Tokens
-          </button>
-        </div>
-      )}
+      
     </div>
   );
 }
