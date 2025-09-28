@@ -144,6 +144,16 @@ export const RELAYER_ABI = [
   },
   {
     type: "function",
+    name: "swapWithQuote",
+    inputs: [
+      { name: "quoteId", type: "bytes32" },
+      { name: "transactionId", type: "bytes32" },
+    ],
+    outputs: [{ name: "outputAmount", type: "uint256" }],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
     name: "authorizedRelayers",
     inputs: [{ name: "", type: "address" }],
     outputs: [{ name: "", type: "bool" }],
@@ -264,3 +274,65 @@ export const getSupportedChainIds = (): SupportedChainId[] => {
 
 // Export account for address access
 export { account };
+
+// Pyth Oracle Contract ABI (minimal required functions)
+export const PRICING_ORACLE_ABI = [
+  {
+    inputs: [
+      { name: "quoteId", type: "bytes32" },
+      { name: "user", type: "address" },
+      { name: "inrAmount", type: "uint256" },
+      { name: "quoteType", type: "uint8" },
+      { name: "priceUpdateData", type: "bytes[]" },
+    ],
+    name: "lockQuote",
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "quoteId", type: "bytes32" }],
+    name: "getQuote",
+    outputs: [
+      {
+        components: [
+          { name: "user", type: "address" },
+          { name: "inrAmount", type: "uint256" },
+          { name: "outputAmount", type: "uint256" },
+          { name: "inputAmount", type: "uint256" },
+          { name: "ethPriceUsd", type: "uint256" },
+          { name: "usdInrRate", type: "uint256" },
+          { name: "lockedAt", type: "uint256" },
+          { name: "expiresAt", type: "uint256" },
+          { name: "quoteType", type: "uint8" },
+          { name: "claimed", type: "bool" },
+        ],
+        name: "quote",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "quoteId", type: "bytes32" }],
+    name: "isQuoteValid",
+    outputs: [{ name: "valid", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "quoteId", type: "bytes32" }],
+    name: "claimQuote",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "priceUpdateData", type: "bytes[]" }],
+    name: "updatePriceFeeds",
+    outputs: [],
+    stateMutability: "payable",
+    type: "function",
+  },
+];

@@ -27,6 +27,8 @@ router.get("/current", async (req: Request, res: Response) => {
       success: true,
       prices: pricesObject,
       timestamp: Date.now(),
+      pythEnabled: priceService.isPythEnabled(),
+      pythStatus: priceService.getPythStatus(),
     });
   } catch (error) {
     console.error("Error fetching current prices:", error);
@@ -125,10 +127,13 @@ router.post("/quote/lock", async (req: Request, res: Response) => {
       type: lockedQuote.type,
       inrAmount: lockedQuote.inrAmount,
       outputAmount: lockedQuote.outputAmount,
+      inputAmount: lockedQuote.inputAmount,
       usdInrRate: lockedQuote.inrPrice,
       lockedAt: lockedQuote.lockedAt,
       expiresAt: lockedQuote.expiresAt,
       validFor: Math.max(0, lockedQuote.expiresAt - Date.now()),
+      isOnChain: lockedQuote.isOnChain || false,
+      source: lockedQuote.isOnChain ? "pyth-on-chain" : "database-fallback",
     };
 
     // Add ETH price only for ETH/INR quotes
@@ -186,10 +191,13 @@ router.get("/quote/:quoteId", async (req: Request, res: Response) => {
       type: lockedQuote.type,
       inrAmount: lockedQuote.inrAmount,
       outputAmount: lockedQuote.outputAmount,
+      inputAmount: lockedQuote.inputAmount,
       usdInrRate: lockedQuote.inrPrice,
       lockedAt: lockedQuote.lockedAt,
       expiresAt: lockedQuote.expiresAt,
       validFor: Math.max(0, lockedQuote.expiresAt - Date.now()),
+      isOnChain: lockedQuote.isOnChain || false,
+      source: lockedQuote.isOnChain ? "pyth-on-chain" : "database-fallback",
     };
 
     // Add ETH price only for ETH/INR quotes
@@ -258,6 +266,86 @@ router.get("/stream", (req: Request, res: Response) => {
 
   req.on("close", () => {
     clearInterval(keepAlive);
+  });
+});
+
+// Get price update data for on-chain submission (Pyth specific)
+router.get("/update-data", async (req: Request, res: Response) => {
+  try {
+    if (!priceService.isPythEnabled()) {
+      return res.status(503).json({
+        error: "Pyth oracle not available",
+        message: "Price update data requires Pyth oracle integration",
+      });
+    }
+
+    const priceUpdateData = await priceService.getPriceUpdateData();
+
+    res.json({
+      success: true,
+      priceUpdateData,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("Error fetching price update data:", error);
+    res.status(500).json({
+      error: "Failed to fetch price update data",
+      details: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+// Claim a quote (for relayers)
+router.post("/quote/:quoteId/claim", async (req: Request, res: Response) => {
+  try {
+    const { quoteId } = req.params;
+
+    if (!quoteId) {
+      return res.status(400).json({
+        error: "Quote ID is required",
+      });
+    }
+
+    // Get quote details first
+    const quote = await priceService.getLockedQuote(quoteId);
+    if (!quote) {
+      return res.status(404).json({
+        error: "Quote not found or expired",
+      });
+    }
+
+    // Try to claim the quote (will handle both on-chain and database quotes)
+    const success = await priceService.claimQuote(quoteId);
+    if (!success) {
+      return res.status(400).json({
+        error: "Failed to claim quote",
+        message: quote.isOnChain ? "On-chain claim failed" : "Quote may already be claimed",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Quote claimed successfully",
+      quoteId: quoteId,
+      source: quote.isOnChain ? "pyth-on-chain" : "database",
+    });
+  } catch (error) {
+    console.error("Error claiming quote:", error);
+    res.status(500).json({
+      error: "Failed to claim quote",
+      details: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+// Get Pyth oracle status
+router.get("/pyth/status", (req: Request, res: Response) => {
+  const status = priceService.getPythStatus();
+
+  res.json({
+    success: true,
+    pyth: status,
+    timestamp: Date.now(),
   });
 });
 

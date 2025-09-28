@@ -52,6 +52,8 @@ enum JobMethod {
   MINT
   CLAIM_USDC
   CLAIM_ETH
+  CLAIM_ETH_QUOTE
+  CLAIM_USDC_QUOTE
 }
 
 enum JobStatus {

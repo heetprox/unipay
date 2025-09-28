@@ -10,6 +10,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {TicketNFT} from "./TicketNFT.sol";
+import {PricingOracle} from "./PricingOracle.sol";
 
 // Universal Router interface
 interface IUniversalRouter {
@@ -46,6 +47,7 @@ contract Relayer is Ownable, ReentrancyGuard {
     PoolKey private poolKey;
 
     TicketNFT public ticketContract;
+    PricingOracle public pricingOracle;
 
     mapping(address => bool) public authorizedRelayers;
     bool public contractPaused;
@@ -74,6 +76,12 @@ contract Relayer is Ownable, ReentrancyGuard {
         address indexed recipient,
         uint256 amount
     );
+    event QuoteSwapExecuted(
+        bytes32 indexed quoteId,
+        bytes32 indexed transactionId,
+        address indexed user,
+        uint256 outputAmount
+    );
 
     error UnauthorizedRelayer();
     error ContractPaused();
@@ -88,6 +96,7 @@ contract Relayer is Ownable, ReentrancyGuard {
     constructor(
         address contractOwner,
         TicketNFT ticketNFTContract,
+        PricingOracle pricingOracleContract,
         address uniswapV4Router,
         address nativeToken,
         address usdcToken,
@@ -97,6 +106,7 @@ contract Relayer is Ownable, ReentrancyGuard {
         universalRouter = IUniversalRouter(uniswapV4Router);
         usdc = IERC20(usdcToken);
         ticketContract = ticketNFTContract;
+        pricingOracle = pricingOracleContract;
         nativeTokenAddress = nativeToken;
         usdcTokenAddress = usdcToken;
         poolFee = fee;
@@ -138,6 +148,48 @@ contract Relayer is Ownable, ReentrancyGuard {
         );
     }
 
+    function swapWithQuote(
+        bytes32 quoteId,
+        bytes32 transactionId
+    )
+        external
+        payable
+        onlyAuthorizedRelayer
+        whenNotPaused
+        nonReentrant
+        returns (uint256 outputAmount)
+    {
+        // Get quote details
+        PricingOracle.Quote memory quote = pricingOracle.getQuote(quoteId);
+        require(
+            pricingOracle.isQuoteValid(quoteId),
+            "Quote invalid or expired"
+        );
+
+        // Claim the quote
+        pricingOracle.claimQuote(quoteId);
+
+        if (quote.quoteType == PricingOracle.QuoteType.ETH_INR) {
+            // ETH/INR: Input USDC, Output ETH
+            outputAmount = executeUSDCToETHSwap(
+                transactionId,
+                quote.user,
+                uint256(quote.inputAmount), // USDC input amount
+                uint256((quote.outputAmount * 95) / 100) // 5% slippage tolerance for ETH output
+            );
+        } else {
+            // USD/INR: Input ETH, Output USDC
+            outputAmount = executeETHToUSDCSwap(
+                transactionId,
+                quote.user,
+                uint256(quote.inputAmount), // ETH input amount
+                uint256((quote.outputAmount * 95) / 100) // 5% slippage tolerance for USDC output
+            );
+        }
+
+        emit QuoteSwapExecuted(quoteId, transactionId, quote.user, outputAmount);
+    }
+
     function swapUSDCToETH(
         bytes32 transactionId,
         address user,
@@ -175,6 +227,12 @@ contract Relayer is Ownable, ReentrancyGuard {
         TicketNFT newTicketContract
     ) external onlyOwner {
         ticketContract = newTicketContract;
+    }
+
+    function updatePricingOracle(
+        PricingOracle newPricingOracle
+    ) external onlyOwner {
+        pricingOracle = newPricingOracle;
     }
 
     receive() external payable {}

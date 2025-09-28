@@ -54,9 +54,22 @@ contract DeployRelayerTestnet is Script {
             address(0)
         );
 
+        address pythContract = vm.envOr(
+            "PYTH_CONTRACT",
+            address(0x2880aB155794e7179c9eE2e38200202908C17B43)
+        );
+
+        console.log("Using Pyth contract address:", pythContract);
+
+        PricingOracle pricingOracle = new PricingOracle(
+            pythContract,
+            TESTNET_OWNER
+        );
+
         Relayer relayerETHUSDC = new Relayer(
             TESTNET_OWNER,
             ticketETHUSDC,
+            pricingOracle,
             UNICHAIN_TESTNET_ROUTER,
             CURRENCY_0_ETH,
             UNICHAIN_TESTNET_USDC,
@@ -67,10 +80,14 @@ contract DeployRelayerTestnet is Script {
         ticketETHUSDC.setMinter(address(relayerETHUSDC));
         ticketETHUSDC.setHook(address(relayerETHUSDC));
         relayerETHUSDC.updateRelayerAuthorization(msg.sender, true);
+        pricingOracle.authorizedRelayers(address(relayerETHUSDC));
+        pricingOracle.authorizedRelayers(TESTNET_OWNER);
 
         // Fund the relayer contract with 0.001 ETH
         uint256 fundingAmount = 0.001 ether;
-        (bool success,) = payable(address(relayerETHUSDC)).call{value: fundingAmount}("");
+        (bool success, ) = payable(address(relayerETHUSDC)).call{
+            value: fundingAmount
+        }("");
         require(success, "Failed to fund Relayer contract with ETH");
 
         console.log("ETH/USDC TicketNFT deployed at:", address(ticketETHUSDC));
@@ -89,6 +106,7 @@ contract DeployRelayerTestnet is Script {
         console.log("  TicketNFT:", address(ticketETHUSDC));
         console.log("  Relayer:", address(relayerETHUSDC));
         console.log("\nDeployer authorized as relayer:", msg.sender);
+        console.log("PricingOracle deployed at:", address(pricingOracle));
     }
 
     function deployWithCustomParams(
@@ -114,9 +132,40 @@ contract DeployRelayerTestnet is Script {
             address(0)
         );
 
+        address pythContract = vm.envOr(
+            "PYTH_CONTRACT",
+            address(0x2880aB155794e7179c9eE2e38200202908C17B43)
+        );
+
+        console.log("Using Pyth contract address:", pythContract);
+
+        PricingOracle pricingOracle = new PricingOracle(
+            pythContract,
+            TESTNET_OWNER
+        );
+
+        console.log("PricingOracle deployed at:", address(pricingOracle));
+        console.log("Owner:", pricingOracle.owner());
+
+        // Verify the contract is properly initialized
+        console.log(
+            "ETH/USD Price Feed ID:",
+            vm.toString(pricingOracle.ETH_USD_FEED())
+        );
+        console.log(
+            "USD/INR Price Feed ID:",
+            vm.toString(pricingOracle.USD_INR_FEED())
+        );
+        console.log("Max Price Age:", pricingOracle.MAX_PRICE_AGE());
+        console.log(
+            "Quote Lock Duration:",
+            pricingOracle.QUOTE_LOCK_DURATION()
+        );
+
         Relayer relayer = new Relayer(
             customOwner,
             ticket,
+            pricingOracle,
             customRouter,
             CURRENCY_0_ETH,
             UNICHAIN_TESTNET_USDC,
@@ -130,7 +179,9 @@ contract DeployRelayerTestnet is Script {
 
         // Fund the relayer contract with 0.001 ETH
         uint256 fundingAmount = 0.001 ether;
-        (bool success,) = payable(address(relayer)).call{value: fundingAmount}("");
+        (bool success, ) = payable(address(relayer)).call{value: fundingAmount}(
+            ""
+        );
         require(success, "Failed to fund Relayer contract with ETH");
 
         console.log("Custom TicketNFT:", address(ticket));
@@ -154,7 +205,10 @@ contract DeployRelayerTestnet is Script {
         vm.stopBroadcast();
     }
 
-    function fundExistingRelayer(address relayerAddress, uint256 amount) external {
+    function fundExistingRelayer(
+        address relayerAddress,
+        uint256 amount
+    ) external {
         require(
             block.chainid == UNICHAIN_TESTNET_ID,
             "This script is only for Unichain testnet"
@@ -169,7 +223,7 @@ contract DeployRelayerTestnet is Script {
         console.log("Amount to fund:", amount);
         console.log("Deployer balance before:", address(msg.sender).balance);
 
-        (bool success,) = payable(relayerAddress).call{value: amount}("");
+        (bool success, ) = payable(relayerAddress).call{value: amount}("");
         require(success, "Failed to fund Relayer contract");
 
         console.log("Successfully funded relayer with:", amount);
