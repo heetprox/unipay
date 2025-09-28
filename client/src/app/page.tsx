@@ -36,10 +36,10 @@ export default function Home() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap mt-10 justify-center gap-4">
+          {/* <div className="flex flex-wrap mt-10 justify-center gap-4">
             <SimpleButton title="Transaction Status" href="/payment/success" />
             <SimpleButton title="Claim Tokens" href="/claim" />
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
