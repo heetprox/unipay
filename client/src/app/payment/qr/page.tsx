@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { UniPayAPI } from "@/lib/api";
 import Link from "next/link";
@@ -14,13 +15,24 @@ import {
   Copy,
   Download,
 } from "lucide-react";
-import QRCodeLib from "qrcode";
 
 export default function QRPaymentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div className="flex items-center gap-3">
+        <RefreshCw className="w-6 h-6 animate-spin" />
+        <span>Loading payment details...</span>
+      </div>
+    </div>}>
+      <QRPaymentContent />
+    </Suspense>
+  );
+}
+
+function QRPaymentContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [transactionId, setTransactionId] = useState<string>("");
-  const [qrCodeData, setQrCodeData] = useState<string>("");
   const [qrCodeImage, setQrCodeImage] = useState<string>("");
   const [intentUrl, setIntentUrl] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
@@ -39,29 +51,20 @@ export default function QRPaymentPage() {
     // Get transaction details from URL params or localStorage
     const txId =
       searchParams.get("txId") || localStorage.getItem("upiTransactionId");
-    const qr = searchParams.get("qr") || localStorage.getItem("qrCode");
+    const qrCode = searchParams.get("qr") || localStorage.getItem("qrCode");
     const intent =
       searchParams.get("intent") || localStorage.getItem("intentUrl");
     const amt = localStorage.getItem("inrAmount") || "";
     const type = localStorage.getItem("quoteType") || "";
 
-    if (txId && qr && intent) {
+    if (txId && qrCode && intent) {
       setTransactionId(txId);
-
-      // Decode QR code if it's base64 encoded
-      const decodedQr = qr.startsWith("data:text/plain;base64,")
-        ? atob(qr.replace("data:text/plain;base64,", ""))
-        : qr;
-
-      setQrCodeData(decodedQr);
+      setQrCodeImage(qrCode); // Directly use the QR code image from API
       setIntentUrl(decodeURIComponent(intent));
       setAmount(amt);
       setQuoteType(type);
-
-      // Generate QR code image
-      generateQRCode(decodedQr);
-
-      // Start checking payment status
+      setLoading(false);
+      
       startStatusCheck(txId);
     } else {
       setError("Payment details not found. Please initiate payment again.");
@@ -74,25 +77,6 @@ export default function QRPaymentPage() {
       }
     };
   }, [searchParams]);
-
-  const generateQRCode = async (data: string) => {
-    try {
-      const qrCodeDataURL = await QRCodeLib.toDataURL(data, {
-        width: 280,
-        margin: 2,
-        color: {
-          dark: "#000000",
-          light: "#FFFFFF",
-        },
-      });
-      setQrCodeImage(qrCodeDataURL);
-      setLoading(false);
-    } catch (err) {
-      console.error("Failed to generate QR code:", err);
-      setError("Failed to generate QR code");
-      setLoading(false);
-    }
-  };
 
   const startStatusCheck = (txId: string) => {
     // Initial check immediately
@@ -180,15 +164,15 @@ export default function QRPaymentPage() {
   };
 
   const copyUpiLink = async () => {
-    if (qrCodeData) {
+    if (intentUrl) {
       try {
-        await navigator.clipboard.writeText(qrCodeData);
+        await navigator.clipboard.writeText(intentUrl);
         showToast("UPI link copied to clipboard!", "success");
       } catch (err) {
         console.error("Failed to copy UPI link:", err);
         // Fallback for older browsers
         const textArea = document.createElement("textarea");
-        textArea.value = qrCodeData;
+        textArea.value = intentUrl;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand("copy");
@@ -387,7 +371,7 @@ export default function QRPaymentPage() {
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Transaction ID</span>
               <span className="text-[#6C5CE7] font-mono text-lg">
-                {transactionId.slice(0, 16)}...
+                {transactionId}
               </span>
             </div>
             {monitoringTime > 120 && (
