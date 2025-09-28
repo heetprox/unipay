@@ -57,10 +57,23 @@ contract HookDeployer {
     function deployTreasuryHook(
         IPoolManager poolManager,
         ITicketNFT ticketNFT,
+        address owner,
+        address nativeToken,
+        address usdcToken,
+        uint24 poolFee,
+        int24 tickSpacing,
         uint160 flags
     ) external returns (TreasuryHook) {
         bytes memory creationCode = type(TreasuryHook).creationCode;
-        bytes memory constructorArgs = abi.encode(poolManager, ticketNFT);
+        bytes memory constructorArgs = abi.encode(
+            poolManager, 
+            ticketNFT, 
+            owner,
+            nativeToken,
+            usdcToken,
+            poolFee,
+            tickSpacing
+        );
         
         (address expectedAddress, bytes32 salt) = miner.find(
             address(this),
@@ -70,7 +83,15 @@ contract HookDeployer {
         );
         
         // Deploy using CREATE2
-        TreasuryHook hook = new TreasuryHook{salt: salt}(poolManager, ticketNFT);
+        TreasuryHook hook = new TreasuryHook{salt: salt}(
+            poolManager, 
+            ticketNFT, 
+            owner,
+            nativeToken,
+            usdcToken,
+            poolFee,
+            tickSpacing
+        );
         
         require(address(hook) == expectedAddress, "Deployment address mismatch");
         return hook;

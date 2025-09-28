@@ -13,6 +13,7 @@ import {
 } from "../config/web3";
 import { upiCallbackSchema, upiInitiateSchema } from "../schemas/validation";
 import type { SupportedChainId } from "../types/chains";
+import QRCode from "qrcode";
 
 const router: Router = Router();
 
@@ -34,16 +35,20 @@ router.post("/initiate", async (req: Request, res: Response) => {
       },
     });
 
-    const dummyIntentUrl = `upi://pay?pa=merchant@upi&pn=UniPay&am=${amount}&tr=${transactionId}&tn=UniPay Payment`;
+    const redirectUrl = `https://payments.weib0.xyz?transactionId=${transactionId}`;
+
+    const qrCode = await QRCode.toDataURL(redirectUrl);
 
     res.json({
       transactionId,
-      intentUrl: dummyIntentUrl,
-      qrCode: `data:text/plain;base64,${Buffer.from(dummyIntentUrl).toString("base64")}`,
+      intentUrl: redirectUrl,
+      qrCode,
     });
-  } catch (error) {
-    if (error instanceof Error && "issues" in error) {
-      return res.status(400).json({ error: "Validation failed", details: error.issues });
+  } catch (error: any) {
+    if (error?.issues) {
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: error.issues });
     }
     console.error("UPI initiate error:", error);
     res.status(500).json({ error: "Failed to initiate payment" });
@@ -72,17 +77,24 @@ router.post("/callback", async (req: Request, res: Response) => {
       try {
         // Use the chainId from the payment record
         if (!existingPayment.chainId) {
-          return res.status(400).json({ error: "Chain ID not found for payment" });
+          return res
+            .status(400)
+            .json({ error: "Chain ID not found for payment" });
         }
-        const relayerContract = getRelayerContract(existingPayment.chainId as SupportedChainId);
-        const walletClient = getWalletClient(existingPayment.chainId as SupportedChainId);
+        const relayerContract = getRelayerContract(
+          existingPayment.chainId as SupportedChainId
+        );
+        const walletClient = getWalletClient(
+          existingPayment.chainId as SupportedChainId
+        );
         const txHash = stringToHex(transactionId, { size: 32 });
 
         console.log(walletClient.account?.address);
 
         // Use writeContract with full ABI instead of contract.write to avoid RPC issues
         const hash = await walletClient.writeContract({
-          address: getChainConfig(existingPayment.chainId as SupportedChainId).relayerContract,
+          address: getChainConfig(existingPayment.chainId as SupportedChainId)
+            .relayerContract,
           abi: RELAYER_ABI,
           functionName: "mintTicket",
           args: [txHash],
@@ -98,7 +110,9 @@ router.post("/callback", async (req: Request, res: Response) => {
           },
         });
 
-        const publicClient = getPublicClient(existingPayment.chainId as SupportedChainId);
+        const publicClient = getPublicClient(
+          existingPayment.chainId as SupportedChainId
+        );
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
         await prisma.job.updateMany({
@@ -129,11 +143,15 @@ router.post("/callback", async (req: Request, res: Response) => {
             method: "MINT",
             status: "FAILED",
             error:
-              contractError instanceof Error ? contractError.message : "Unknown contract error",
+              contractError instanceof Error
+                ? contractError.message
+                : "Unknown contract error",
           },
         });
 
-        res.status(500).json({ error: "Payment updated but ticket minting failed" });
+        res
+          .status(500)
+          .json({ error: "Payment updated but ticket minting failed" });
       }
     } else {
       await prisma.payment.update({
@@ -145,7 +163,9 @@ router.post("/callback", async (req: Request, res: Response) => {
     }
   } catch (error) {
     if (error instanceof Error && "issues" in error) {
-      return res.status(400).json({ error: "Validation failed", details: error.issues });
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: error.issues });
     }
     console.error("UPI callback error:", error);
     res.status(500).json({ error: "Failed to process callback" });

@@ -3,7 +3,7 @@
   "private": true,
   "devDependencies": {
     "@openzeppelin/contracts": "^5.4.0",
-    "@pythnetwork/pyth-sdk-solidity": "^4.0.0",
+    "@pythnetwork/pyth-sdk-solidity": "^4.2.0",
     "@uniswap/v4-core": "^1.0.2",
     "@uniswap/v4-periphery": "^1.0.3",
     "forge-std": "github:foundry-rs/forge-std#v1.10.0"

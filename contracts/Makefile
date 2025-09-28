@@ -1,5 +1,5 @@
 # UniPay Relayer Deployment Makefile
-.PHONY: fork-base deploy-onchain create-pool test-happy test-all clean-fork
+.PHONY: fork deploy-onchain create-pool test-happy test-all clean-fork
 .PHONY: deploy-relayer-testnet deploy-relayer-ethereum deploy-relayer-base deploy-relayer-unichain
 .PHONY: help
 
@@ -10,14 +10,20 @@ include .env
 check-private-key:
 	@if [ -z "$(PRIVATE_KEY)" ]; then echo "Error: PRIVATE_KEY must be set in .env"; exit 1; fi
 
-fork-base: ## Start Anvil fork with BASE RPC (blocking)
-	@echo "Starting Anvil fork on Base mainnet..."
-	anvil --fork-url $(BASE_RPC_URL) --host 0.0.0.0 --port 8545
+fork: ## Start Anvil fork with Sepolia Unichain RPC (blocking)
+	@echo "Starting Anvil fork on Sepolia Unichain mainnet..."
+	anvil \
+	  --fork-url https://sepolia.unichain.org \
+	  --host 0.0.0.0 \
+	  --port 8545 \
+	  --gas-limit 100000000 \
+	  --block-base-fee-per-gas 0
+
 
 deploy-onchain: check-private-key ## Run DeployOnchainTrio.s.sol
 	@echo "Deploying contracts on Base fork..."
 	@forge script script/DeployOnchainTrio.s.sol \
-		--fork-url http://127.0.0.1:8545 --broadcast -vv
+		--fork-url http://127.0.0.1:8545 --private-key $(PRIVATE_KEY) --broadcast -vv
 
 create-pool: check-private-key ## Run CreatePoolAndSeed.s.sol (uses sqrtPriceX96 above)
 	@echo "Creating pool with liquidity..."
