@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { UniPayAPI } from "@/lib/api";
 import { useAccount } from "wagmi";
@@ -11,6 +11,19 @@ import { CheckCircle, Clock, AlertTriangle, RefreshCw } from "lucide-react";
 import type { TransactionStatusResponse } from "@/types/api";
 
 export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div className="flex items-center gap-3">
+        <RefreshCw className="w-6 h-6 animate-spin" />
+        <span>Loading payment details...</span>
+      </div>
+    </div>}>
+      <PaymentSuccessContent />
+    </Suspense>
+  );
+}
+
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const { address } = useAccount();
   const [transactionId, setTransactionId] = useState<string>("");
