@@ -65,9 +65,7 @@ const navbarItems = [
 const Logo = () => {
   return (
     <div className="flex items-center">
-      <span className="ml-2 m-font text-2xl md:text-3xl text-white">
-        UniPay
-      </span>
+      <span className="m-font text-2xl md:text-3xl text-white">UniPay</span>
     </div>
   );
 };

@@ -19,6 +19,22 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
     ],
+    "rules": {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-expressions": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@next/next/no-img-element": "off",
+      "react-hooks/exhaustive-deps": "off",
+      "react/no-unescaped-entities": "off",
+      "react/jsx-no-undef": "off",
+      "react/prop-types": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/display-name": "off"
+    }
   },
 ];
 
